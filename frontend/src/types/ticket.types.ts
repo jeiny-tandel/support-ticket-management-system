@@ -45,6 +45,14 @@ export interface PaginatedTicketsResponse {
   totalPages: number;
 }
 
+export interface TicketSummaryResponse {
+  total: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+}
+
 export interface GetTicketsParams {
   status?: TicketStatus;
   priority?: TicketPriority;

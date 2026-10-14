@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Table, Tag, Select, Alert, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -23,6 +23,7 @@ import { CreateTicketModal } from "./components";
 
 export const TicketsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userRole = useAppSelector(selectUserRole);
   const isAdmin = userRole === "ADMIN";
 
@@ -43,8 +44,29 @@ export const TicketsPage: React.FC = () => {
     TicketPriority | undefined
   >(undefined);
 
-  // Modal state
-  const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
+  // Modal state - initialize open if navigated with openCreateModal state for Admin
+  const [createModalOpen, setCreateModalOpen] = useState<boolean>(() => {
+    const navState = location.state as { openCreateModal?: boolean } | null;
+    return Boolean(navState?.openCreateModal && isAdmin);
+  });
+
+  // Support navigation state updates if navigated while already mounted
+  const [prevNavState, setPrevNavState] = useState(location.state);
+  if (location.state !== prevNavState) {
+    setPrevNavState(location.state);
+    const navState = location.state as { openCreateModal?: boolean } | null;
+    if (navState?.openCreateModal && isAdmin) {
+      setCreateModalOpen(true);
+    }
+  }
+
+  // Clear navigation state so future route visits or refreshes do not re-open the modal
+  useEffect(() => {
+    const navState = location.state as { openCreateModal?: boolean } | null;
+    if (navState?.openCreateModal) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   useEffect(() => {
     let isMounted = true;

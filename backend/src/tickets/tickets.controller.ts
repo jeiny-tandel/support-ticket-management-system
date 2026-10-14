@@ -19,6 +19,7 @@ import {
   TicketsService,
   PaginatedTicketsResult,
   AuthenticatedUserContext,
+  TicketSummaryResult,
 } from './tickets.service';
 import {
   AssignTicketDto,
@@ -58,6 +59,18 @@ export class TicketsController {
     },
   ): Promise<PaginatedTicketsResult> {
     return this.ticketsService.getTickets(query, req.user);
+  }
+
+  @Get('summary')
+  @Permissions(Permission.VIEW_DASHBOARD)
+  @HttpCode(HttpStatus.OK)
+  async getSummary(
+    @Request()
+    req: {
+      user: AuthenticatedUserContext;
+    },
+  ): Promise<TicketSummaryResult> {
+    return this.ticketsService.getSummary(req.user);
   }
 
   @Patch(':id/assign')

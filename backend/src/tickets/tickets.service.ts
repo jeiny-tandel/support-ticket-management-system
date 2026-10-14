@@ -34,6 +34,14 @@ export interface PaginatedTicketsResult {
   totalPages: number;
 }
 
+export interface TicketSummaryResult {
+  total: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+}
+
 @Injectable()
 export class TicketsService {
   constructor(
@@ -135,6 +143,80 @@ export class TicketsService {
       limit,
       totalPages,
     };
+  }
+
+  async getSummary(
+    user: AuthenticatedUserContext,
+  ): Promise<TicketSummaryResult> {
+    if (!user || !user.id) {
+      throw new UnauthorizedException('User authentication context is missing');
+    }
+
+    if (!Types.ObjectId.isValid(user.id)) {
+      throw new BadRequestException(
+        'Invalid user ID in authentication context',
+      );
+    }
+
+    const matchFilter: {
+      assignedToId?: Types.ObjectId;
+    } = {};
+
+    // Role-based visibility scoping
+    if (user.role === UserRole.SUPPORT_AGENT) {
+      matchFilter.assignedToId = new Types.ObjectId(user.id);
+    } else if (user.role === UserRole.ADMIN) {
+      // Admins see organization-wide statistics across all tickets
+    } else {
+      throw new ForbiddenException('Access denied for user role');
+    }
+
+    interface StatusCountAggregation {
+      _id: TicketStatus;
+      count: number;
+    }
+
+    const aggregationResults = await this.ticketModel
+      .aggregate<StatusCountAggregation>([
+        { $match: matchFilter },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .exec();
+
+    const summary: TicketSummaryResult = {
+      total: 0,
+      open: 0,
+      inProgress: 0,
+      resolved: 0,
+      closed: 0,
+    };
+
+    for (const item of aggregationResults) {
+      const count = Number(item.count) || 0;
+      summary.total += count;
+
+      switch (item._id) {
+        case TicketStatus.OPEN:
+          summary.open = count;
+          break;
+        case TicketStatus.IN_PROGRESS:
+          summary.inProgress = count;
+          break;
+        case TicketStatus.RESOLVED:
+          summary.resolved = count;
+          break;
+        case TicketStatus.CLOSED:
+          summary.closed = count;
+          break;
+      }
+    }
+
+    return summary;
   }
 
   async assignTicket(

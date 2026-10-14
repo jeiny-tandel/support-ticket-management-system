@@ -2,6 +2,7 @@ import { apiClient } from './axios';
 import type {
   Ticket,
   PaginatedTicketsResponse,
+  TicketSummaryResponse,
   GetTicketsParams,
   CreateTicketPayload,
   AssignTicketPayload,
@@ -9,6 +10,15 @@ import type {
   TicketComment,
   CreateCommentPayload,
 } from '../types';
+
+/**
+ * Retrieves ticket statistics summary for the dashboard.
+ * Backend endpoint: GET /tickets/summary
+ */
+export const getTicketSummaryApi = async (): Promise<TicketSummaryResponse> => {
+  const response = await apiClient.get<TicketSummaryResponse>('/tickets/summary');
+  return response.data;
+};
 
 /**
  * Fetches tickets with optional status, priority, and pagination query parameters.
