@@ -8,8 +8,8 @@ import {
   ArrowRightOutlined,
   CheckCircleFilled,
 } from "@ant-design/icons";
-import { AppButton, AppCard } from "../components/common";
-import { ROUTES } from "../constants/routes";
+import { AppButton, AppCard } from "../../components/common";
+import { ROUTES } from "../../constants/routes";
 
 export const HomePage: React.FC = () => {
   return (

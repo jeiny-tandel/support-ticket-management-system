@@ -39,6 +39,6 @@ type JwtExpiresIn = NonNullable<
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
-  exports: [PassportModule, JwtAuthGuard],
+  exports: [PassportModule, JwtAuthGuard, JwtModule, AuthService],
 })
 export class AuthModule {}

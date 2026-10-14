@@ -9,16 +9,16 @@ import {
   ArrowLeftOutlined,
 } from "@ant-design/icons";
 import { useFormik } from "formik";
-import { loginSchema, type LoginFormData } from "../schemas";
-import { useAppDispatch, useAppSelector } from "../hooks";
+import { loginSchema, type LoginFormData } from "../../schemas";
+import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
   login,
   clearError,
   selectAuthLoading,
   selectAuthError,
-} from "../store";
-import { AppLogo, AppInput, AppButton } from "../components/common";
-import { ROUTES } from "../constants/routes";
+} from "../../store";
+import { AppLogo, AppInput, AppButton } from "../../components/common";
+import { ROUTES } from "../../constants/routes";
 
 export const LoginPage: React.FC = () => {
   const dispatch = useAppDispatch();

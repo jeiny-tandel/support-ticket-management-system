@@ -6,8 +6,8 @@ import {
   LockOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { PageHeader, AppButton, AppCard } from "../components/common";
-import { ROUTES } from "../constants/routes";
+import { PageHeader, AppButton, AppCard } from "../../components/common";
+import { ROUTES } from "../../constants/routes";
 
 export const AboutPage: React.FC = () => {
   return (

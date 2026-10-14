@@ -10,16 +10,16 @@ import {
   ArrowLeftOutlined,
 } from "@ant-design/icons";
 import { useFormik } from "formik";
-import { registerSchema, type RegisterFormData } from "../schemas";
-import { useAppDispatch, useAppSelector } from "../hooks";
+import { registerSchema, type RegisterFormData } from "../../schemas";
+import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
   registerAgent,
   clearError,
   selectAuthLoading,
   selectAuthError,
-} from "../store";
-import { AppLogo, AppInput, AppButton } from "../components/common";
-import { ROUTES } from "../constants/routes";
+} from "../../store";
+import { AppLogo, AppInput, AppButton } from "../../components/common";
+import { ROUTES } from "../../constants/routes";
 
 export const RegisterPage: React.FC = () => {
   const dispatch = useAppDispatch();

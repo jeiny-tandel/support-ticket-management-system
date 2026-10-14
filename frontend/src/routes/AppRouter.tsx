@@ -18,10 +18,13 @@ import {
   AboutPage,
   LoginPage,
   RegisterPage,
-  DashboardPage,
+} from "../pages/public";
+import { DashboardPage } from "../pages/dashboard";
+import {
   UnauthorizedPage,
   NotFoundPage,
-} from "../pages";
+} from "../pages/shared";
+import { TicketsPage, TicketDetailsPage } from "../pages/tickets";
 
 export const AppRouter: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -67,6 +70,8 @@ export const AppRouter: React.FC = () => {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayoutWrapper />}>
           <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+          <Route path={ROUTES.TICKETS} element={<TicketsPage />} />
+          <Route path={ROUTES.TICKET_DETAILS} element={<TicketDetailsPage />} />
         </Route>
       </Route>
 

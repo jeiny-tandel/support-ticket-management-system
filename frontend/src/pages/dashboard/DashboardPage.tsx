@@ -1,7 +1,9 @@
 import React from "react";
 import { Tag } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { PageHeader, AppButton, AppCard } from "../components/common";
+import { Link } from "react-router-dom";
+import { PageHeader, AppButton, AppCard } from "../../components/common";
+import { ROUTES } from "../../constants/routes";
 
 export const DashboardPage: React.FC = () => {
   const tickets = [
@@ -33,14 +35,16 @@ export const DashboardPage: React.FC = () => {
         title="Welcome to SolviX"
         subtitle="Your support workspace, all in one place."
         extra={
-          <AppButton
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            className="h-11 px-5"
-          >
-            Create Ticket
-          </AppButton>
+          <Link to={ROUTES.TICKETS}>
+            <AppButton
+              type="primary"
+              size="large"
+              icon={<PlusOutlined />}
+              className="h-11 px-5"
+            >
+              Create Ticket
+            </AppButton>
+          </Link>
         }
       />
 

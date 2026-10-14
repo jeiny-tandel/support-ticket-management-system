@@ -6,6 +6,8 @@ import { logout, selectCurrentUser, selectUserRole } from "../store";
 import { getAccessibleMenuItems } from "../constants/menus";
 import { ROUTES } from "../constants/routes";
 
+import { socketService } from "../services";
+
 export const MainLayoutWrapper: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -36,6 +38,7 @@ export const MainLayoutWrapper: React.FC = () => {
   };
 
   const handleLogout = () => {
+    socketService.disconnect();
     dispatch(logout());
     navigate(ROUTES.LOGIN, { replace: true });
   };
