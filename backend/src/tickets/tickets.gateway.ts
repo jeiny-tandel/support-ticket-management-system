@@ -17,7 +17,7 @@ import { Logger } from '@nestjs/common';
 import { Ticket, TicketDocument } from './schemas/ticket.schema';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../common/enums';
-import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { JwtPayload } from '../common/strategies/jwt.strategy';
 
 export interface AuthenticatedSocketUser {
   id: string;
@@ -71,8 +71,7 @@ export class TicketsGateway
   ) {}
 
   afterInit(server: Server): void {
-    // Authenticate handshake via Socket.IO middleware so socket.data.user
-    // is guaranteed to be populated BEFORE any socket event (e.g. ticket:join) is processed.
+    // Authenticate handshake so socket.data.user is populated before events are processed.
     server.use((socket: Socket, next: (err?: Error) => void) => {
       void (async () => {
         try {
@@ -168,14 +167,13 @@ export class TicketsGateway
     }
 
     const ticket = await this.ticketModel.findById(ticketId).exec();
-    if (!ticket) {
+    if (!ticket || ticket.isDeleted) {
       return {
         success: false,
         message: `Ticket with ID "${ticketId}" not found`,
       };
     }
 
-    // Server-side authorization check for joining ticket room
     if (user.role === UserRole.ADMIN) {
       // Admins may join any ticket room
     } else if (user.role === UserRole.SUPPORT_AGENT) {
@@ -240,7 +238,6 @@ export class TicketsGateway
           { user?: AuthenticatedSocketUser } | undefined;
         const socketUser = socketData?.user;
 
-        // Revoke only for the specified Support Agent user
         if (
           socketUser &&
           socketUser.role === UserRole.SUPPORT_AGENT &&
@@ -263,6 +260,32 @@ export class TicketsGateway
     }
   }
 
+  async handleTicketDeleted(ticketId: string): Promise<void> {
+    if (!this.server) {
+      return;
+    }
+
+    const roomName = `ticket:${ticketId}`;
+    try {
+      this.server.to(roomName).emit('ticket:deleted', { ticketId });
+      const sockets = await this.server.in(roomName).fetchSockets();
+      for (const socket of sockets) {
+        socket.leave(roomName);
+      }
+      this.logger.log(
+        `Notified and evicted all sockets from deleted ticket room ${roomName}`,
+      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err && typeof err === 'object' && 'message' in err
+          ? String(err.message)
+          : 'Unknown error';
+      this.logger.error(
+        `Failed to evict sockets for deleted ticket ${ticketId}: ${errorMsg}`,
+      );
+    }
+  }
+
   async emitCommentCreated(
     ticketId: string,
     payload: CommentCreatedEventPayload,
@@ -274,24 +297,26 @@ export class TicketsGateway
     const roomName = `ticket:${ticketId}`;
 
     try {
-      // 1. Fetch current ticket from DB to determine currently authorized assignee
       const ticket = await this.ticketModel
-        .findById(ticketId)
-        .select('assignedToId')
+        .findOne({ _id: ticketId, isDeleted: { $ne: true } })
+        .select('assignedToId isDeleted')
         .lean()
         .exec();
 
-      const assignedTo = ticket?.assignedToId as
+      if (!ticket) {
+        this.logger.warn(
+          `Skipping comment broadcast: ticket ${ticketId} is missing or deleted`,
+        );
+        return;
+      }
+
+      const assignedTo = ticket.assignedToId as
         Types.ObjectId | string | undefined;
       const currentAssignedToId = assignedTo ? assignedTo.toString() : null;
 
-      // 2. Fetch all sockets currently joined in this ticket's room
       const sockets = await this.server.in(roomName).fetchSockets();
 
-      // 3. Inspect every socket before broadcasting:
-      //    - ADMIN: authorized to receive comments.
-      //    - SUPPORT_AGENT: authorized ONLY if they match currentAssignedToId.
-      //    - Any other / stale socket: evicted from the room prior to broadcast.
+      // Evict unauthorized or stale sockets before broadcasting to maintain room access control
       for (const socket of sockets) {
         const socketData = socket.data as
           { user?: AuthenticatedSocketUser } | undefined;
@@ -303,7 +328,6 @@ export class TicketsGateway
         }
 
         if (socketUser.role === UserRole.ADMIN) {
-          // Admins retain authorization
           continue;
         }
 
@@ -319,7 +343,6 @@ export class TicketsGateway
         }
       }
 
-      // 4. Broadcast the event to the sanitized room
       this.server.to(roomName).emit('comment:created', payload);
       this.logger.log(
         `Broadcasted comment:created event to room ${roomName} for comment ${payload._id}`,

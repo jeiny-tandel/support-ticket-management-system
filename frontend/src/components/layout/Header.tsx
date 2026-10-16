@@ -7,25 +7,25 @@ import {
   LogoutOutlined,
   DownOutlined,
 } from '@ant-design/icons';
-import { AppLogo } from '../common/AppLogo';
+import { Logo } from '../common/Logo';
 
-const { Header } = Layout;
-
-export interface AppHeaderUser {
+export interface HeaderUser {
   name?: string;
   email?: string;
   role?: string;
 }
 
-export interface AppHeaderProps {
+export interface HeaderProps {
   /** Current sidebar collapse state */
   collapsed?: boolean;
   /** Callback to toggle sidebar collapse */
   onToggleCollapse?: () => void;
   /** Optional user profile to display in the header */
-  user?: AppHeaderUser | null;
+  user?: HeaderUser | null;
   /** Callback when logout item is clicked */
   onLogout?: () => void;
+  /** Callback when profile item is clicked */
+  onProfileClick?: () => void;
   /** Additional custom content on the right side */
   rightContent?: React.ReactNode;
   /** Whether to display the logo inside the header */
@@ -38,11 +38,12 @@ export interface AppHeaderProps {
  * Reusable application header providing collapse toggle, branding, and user account actions.
  * Configured with crisp light styling and high-contrast readable typography.
  */
-export const AppHeader: React.FC<AppHeaderProps> = ({
+export const Header: React.FC<HeaderProps> = ({
   collapsed = false,
   onToggleCollapse,
   user,
   onLogout,
+  onProfileClick,
   rightContent,
   showLogo = false,
   className = '',
@@ -80,6 +81,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         ]
       : []),
     {
+      key: 'profile',
+      icon: <UserOutlined className="text-gray-500" />,
+      label: 'My Profile',
+      onClick: onProfileClick,
+    },
+    { type: 'divider' as const },
+    {
       key: 'logout',
       icon: <LogoutOutlined className="text-red-500" />,
       danger: true,
@@ -89,7 +97,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   ];
 
   return (
-    <Header
+    <Layout.Header
       style={{ backgroundColor: '#ffffff', lineHeight: 'normal' }}
       className={`bg-white border-b border-gray-100 px-4 sm:px-6 flex items-center justify-between h-16 shrink-0 z-10 shadow-xs ${className}`}
     >
@@ -109,7 +117,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </button>
         )}
 
-        {showLogo && <AppLogo size="small" />}
+        {showLogo && <Logo size="small" />}
       </div>
 
       <div className="flex items-center gap-4">
@@ -159,8 +167,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </Dropdown>
         )}
       </div>
-    </Header>
+    </Layout.Header>
   );
 };
 
-export default AppHeader;
+export default Header;

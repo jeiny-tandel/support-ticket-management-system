@@ -8,6 +8,7 @@ export const ROUTES = {
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
   TICKETS: '/tickets',
+  DELETED_TICKETS: '/tickets/deleted',
   TICKET_DETAILS: '/tickets/:id',
   USERS: '/users',
   PROFILE: '/profile',

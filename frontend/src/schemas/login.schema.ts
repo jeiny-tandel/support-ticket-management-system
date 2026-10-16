@@ -3,10 +3,7 @@ import type { LoginCredentials } from '../types';
 
 export type LoginFormData = LoginCredentials;
 
-/**
- * Validation schema for user authentication.
- * Enforces email format and required credentials.
- */
+/** Validation schema for user authentication. */
 export const loginSchema: Yup.ObjectSchema<LoginFormData> = Yup.object({
   email: Yup.string()
     .trim()

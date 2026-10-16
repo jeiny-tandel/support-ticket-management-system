@@ -1,7 +1,7 @@
 import React from "react";
 import { Outlet, Link } from "react-router-dom";
 import { PublicHeader } from "./PublicHeader";
-import { AppLogo } from "../common/AppLogo";
+import { Logo } from "../common/Logo";
 import { ROUTES } from "../../constants/routes";
 
 export const PublicLayout: React.FC = () => {
@@ -16,7 +16,7 @@ export const PublicLayout: React.FC = () => {
       <footer className="bg-white border-t border-gray-100 py-8 px-4 sm:px-6 lg:px-8 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <AppLogo size="small" />
+            <Logo size="small" />
             <span className="text-xs text-gray-400">
               — Support Ticket Management System
             </span>

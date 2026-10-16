@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Layout } from 'antd';
-import { AppHeader, type AppHeaderUser } from './AppHeader';
-import { AppSidebar, type SidebarItem } from './AppSidebar';
+import { Layout as AntLayout } from 'antd';
+import { Header, type HeaderUser } from './Header';
+import { Sidebar, type SidebarItem } from './Sidebar';
 
-const { Content } = Layout;
+const { Content } = AntLayout;
 
-export interface AppLayoutProps {
+export interface LayoutProps {
   /** Page body content */
   children: React.ReactNode;
   /** Optional sidebar navigation items */
@@ -15,9 +15,11 @@ export interface AppLayoutProps {
   /** Callback triggered when a menu item is clicked */
   onSelectMenuKey?: (key: string, item: SidebarItem) => void;
   /** Authenticated user display details */
-  user?: AppHeaderUser | null;
+  user?: HeaderUser | null;
   /** Callback triggered when logout action is clicked */
   onLogout?: () => void;
+  /** Callback triggered when My Profile action is clicked */
+  onProfileClick?: () => void;
   /** Optional extra elements for the header */
   headerExtra?: React.ReactNode;
   /** Optional controlled collapsed state */
@@ -29,16 +31,17 @@ export interface AppLayoutProps {
 }
 
 /**
- * Reusable layout shell integrating AppHeader, AppSidebar, and content area.
+ * Reusable layout shell integrating Header, Sidebar, and content area.
  * Configured with fixed sidebar and independent smooth scrolling main content.
  */
-export const AppLayout: React.FC<AppLayoutProps> = ({
+export const Layout: React.FC<LayoutProps> = ({
   children,
   sidebarItems = [],
   selectedMenuKey,
   onSelectMenuKey,
   user,
   onLogout,
+  onProfileClick,
   headerExtra,
   collapsed: externalCollapsed,
   onCollapseChange,
@@ -60,11 +63,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const hasSidebar = sidebarItems.length > 0;
 
   return (
-    <Layout
+    <AntLayout
       className={`h-screen flex flex-row overflow-hidden bg-gray-50 ${className}`}
     >
       {hasSidebar && (
-        <AppSidebar
+        <Sidebar
           collapsed={isCollapsed}
           onCollapse={handleToggleCollapse}
           items={sidebarItems}
@@ -73,22 +76,23 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         />
       )}
 
-      <Layout className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50">
-        <AppHeader
+      <AntLayout className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 min-w-0">
+        <Header
           collapsed={isCollapsed}
           onToggleCollapse={hasSidebar ? handleToggleCollapse : undefined}
           user={user}
           onLogout={onLogout}
+          onProfileClick={onProfileClick}
           rightContent={headerExtra}
           showLogo={!hasSidebar}
         />
 
-        <Content className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto w-full">{children}</div>
+        <Content className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 min-w-0">
+          <div className="max-w-7xl mx-auto w-full min-w-0">{children}</div>
         </Content>
-      </Layout>
-    </Layout>
+      </AntLayout>
+    </AntLayout>
   );
 };
 
-export default AppLayout;
+export default Layout;

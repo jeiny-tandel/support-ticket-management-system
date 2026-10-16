@@ -16,6 +16,9 @@ export const createTicketSchema: Yup.ObjectSchema<CreateTicketFormData> =
     priority: Yup.string<CreateTicketPayload['priority']>()
       .required('Priority is required')
       .oneOf(['LOW', 'MEDIUM', 'HIGH'], 'Priority must be LOW, MEDIUM, or HIGH'),
+    dueDate: Yup.string()
+      .nullable()
+      .optional(),
   });
 
 export default createTicketSchema;

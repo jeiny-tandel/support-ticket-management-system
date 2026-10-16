@@ -6,7 +6,7 @@ import {
   LockOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { PageHeader, AppButton, AppCard } from "../../components/common";
+import { PageHeader, Button, Card } from "../../components/common";
 import { ROUTES } from "../../constants/routes";
 
 export const AboutPage: React.FC = () => {
@@ -19,17 +19,16 @@ export const AboutPage: React.FC = () => {
           extra={
             <div className="flex gap-3">
               <Link to={ROUTES.LOGIN}>
-                <AppButton type="default">Sign In</AppButton>
+                <Button type="default">Sign In</Button>
               </Link>
               <Link to={ROUTES.REGISTER}>
-                <AppButton type="primary">Register Agent</AppButton>
+                <Button type="primary">Register Agent</Button>
               </Link>
             </div>
           }
         />
 
-        {/* Purpose Statement */}
-        <AppCard elevated className="p-4 sm:p-6 mb-10 border border-gray-100">
+        <Card elevated className="p-4 sm:p-6 mb-10 border border-gray-100">
           <div className="flex flex-col sm:flex-row gap-6 items-start">
             <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl shrink-0">
               <CompassOutlined />
@@ -53,16 +52,15 @@ export const AboutPage: React.FC = () => {
               </p>
             </div>
           </div>
-        </AppCard>
+        </Card>
 
-        {/* Architectural Pillars */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-6 m-0">
             How SolviX Delivers Results
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <AppCard className="border border-gray-100">
+            <Card className="border border-gray-100">
               <div className="text-indigo-600 text-xl mb-3">
                 <CheckCircleOutlined />
               </div>
@@ -74,9 +72,9 @@ export const AboutPage: React.FC = () => {
                 Progress, Resolved), preventing tickets from slipping through the
                 cracks.
               </p>
-            </AppCard>
+            </Card>
 
-            <AppCard className="border border-gray-100">
+            <Card className="border border-gray-100">
               <div className="text-indigo-600 text-xl mb-3">
                 <LockOutlined />
               </div>
@@ -87,9 +85,9 @@ export const AboutPage: React.FC = () => {
                 Administrators manage platform users and system settings, while
                 Support Agents focus strictly on resolving tickets.
               </p>
-            </AppCard>
+            </Card>
 
-            <AppCard className="border border-gray-100">
+            <Card className="border border-gray-100">
               <div className="text-indigo-600 text-xl mb-3">
                 <ThunderboltOutlined />
               </div>
@@ -100,11 +98,10 @@ export const AboutPage: React.FC = () => {
                 Built on modern React and Ant Design primitives, ensuring smooth
                 desktop and mobile operations without bloat.
               </p>
-            </AppCard>
+            </Card>
           </div>
         </div>
 
-        {/* Ready to join banner */}
         <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-8 text-center sm:text-left sm:flex sm:items-center sm:justify-between gap-6">
           <div>
             <h3 className="text-lg font-bold text-indigo-950 m-0">
@@ -116,7 +113,7 @@ export const AboutPage: React.FC = () => {
           </div>
           <div className="mt-4 sm:mt-0 shrink-0">
             <Link to={ROUTES.REGISTER}>
-              <AppButton type="primary">Register Account</AppButton>
+              <Button type="primary">Register Account</Button>
             </Link>
           </div>
         </div>

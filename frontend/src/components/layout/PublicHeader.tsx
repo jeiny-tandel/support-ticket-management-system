@@ -3,8 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { MenuOutlined, CloseOutlined } from "@ant-design/icons";
 import { useAppSelector } from "../../hooks";
 import { selectIsAuthenticated } from "../../store";
-import { AppLogo } from "../common/AppLogo";
-import { AppButton } from "../common/AppButton";
+import { Logo, Button } from "../common";
 import { ROUTES } from "../../constants/routes";
 
 export const PublicHeader: React.FC = () => {
@@ -19,7 +18,7 @@ export const PublicHeader: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
         <Link to={ROUTES.HOME} className="flex items-center">
-          <AppLogo size="small" />
+          <Logo size="small" />
         </Link>
 
         {/* Desktop Navigation Links */}
@@ -50,19 +49,19 @@ export const PublicHeader: React.FC = () => {
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <Link to={ROUTES.DASHBOARD}>
-              <AppButton type="primary">Go to Dashboard</AppButton>
+              <Button type="primary">Go to Dashboard</Button>
             </Link>
           ) : (
             <>
               <Link to={ROUTES.LOGIN}>
-                <AppButton type="default" className="font-medium text-gray-700">
+                <Button type="default" className="font-medium text-gray-700">
                   Sign In
-                </AppButton>
+                </Button>
               </Link>
               <Link to={ROUTES.REGISTER}>
-                <AppButton type="primary" className="font-medium">
+                <Button type="primary" className="font-medium">
                   Register Agent
-                </AppButton>
+                </Button>
               </Link>
             </>
           )}
@@ -119,24 +118,24 @@ export const PublicHeader: React.FC = () => {
                 to={ROUTES.DASHBOARD}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <AppButton type="primary" fullWidth>
+                <Button type="primary" fullWidth>
                   Go to Dashboard
-                </AppButton>
+                </Button>
               </Link>
             ) : (
               <>
                 <Link to={ROUTES.LOGIN} onClick={() => setMobileMenuOpen(false)}>
-                  <AppButton type="default" fullWidth>
+                  <Button type="default" fullWidth>
                     Sign In
-                  </AppButton>
+                  </Button>
                 </Link>
                 <Link
                   to={ROUTES.REGISTER}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <AppButton type="primary" fullWidth>
+                  <Button type="primary" fullWidth>
                     Register Agent
-                  </AppButton>
+                  </Button>
                 </Link>
               </>
             )}

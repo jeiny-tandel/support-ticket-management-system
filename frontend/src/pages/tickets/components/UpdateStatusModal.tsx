@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { Modal, Select, Alert, Tag, message } from 'antd';
+import { Select, Alert, Tag, message } from 'antd';
 import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import { updateTicketStatusApi } from '../../../api';
 import {
   TICKET_STATUSES,
   type Ticket,
   type TicketStatus,
 } from '../../../types';
-import { useAppSelector } from '../../../hooks';
-import { selectUserRole } from '../../../store';
-import { AppButton } from '../../../components/common';
+import { useAppDispatch, useAppSelector } from '../../../hooks';
+import { selectUserRole, updateTicketStatus, fetchTicketSummary } from '../../../store';
+import { Button, Modal } from '../../../components/common';
 
 interface UpdateStatusModalProps {
   ticket: Ticket | null;
@@ -50,6 +49,7 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const dispatch = useAppDispatch();
   const userRole = useAppSelector(selectUserRole);
   const isAdmin = userRole === 'ADMIN';
 
@@ -79,56 +79,44 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
     setIsSubmitting(true);
     setSubmitError(null);
 
-    try {
-      const updatedTicket = await updateTicketStatusApi(ticket._id, {
-        status: selectedStatus,
-      });
+    const resultAction = await dispatch(
+      updateTicketStatus({
+        ticketId: ticket._id,
+        payload: { status: selectedStatus },
+      }),
+    );
+
+    setIsSubmitting(false);
+
+    if (updateTicketStatus.fulfilled.match(resultAction)) {
       message.success(
         isClosed && isAdmin
           ? 'Ticket reopened and status updated successfully'
           : 'Ticket status updated successfully',
       );
+      dispatch(fetchTicketSummary());
       handleCancel();
-      onSuccess(updatedTicket);
-    } catch (err: unknown) {
-      let msg = 'Failed to update ticket status. Please try again.';
-      if (err && typeof err === 'object') {
-        if ('response' in err && (err as { response?: { data?: { message?: unknown } } }).response?.data?.message) {
-          const backendMsg = (err as { response: { data: { message: unknown } } }).response.data.message;
-          msg = Array.isArray(backendMsg) ? backendMsg.join(', ') : String(backendMsg);
-        } else if ('message' in err) {
-          msg = String((err as { message: unknown }).message);
-        }
-      }
+      onSuccess(resultAction.payload);
+    } else {
+      const msg =
+        resultAction.payload ?? 'Failed to update ticket status. Please try again.';
       setSubmitError(msg);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
     <Modal
-      title={
-        <div className="flex flex-col">
-          <span className="text-lg font-bold text-gray-900">Update Ticket Status</span>
-          {ticket && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-gray-500 font-normal truncate max-w-xs">
-                Ticket: <strong className="text-gray-700">{ticket.title}</strong>
-              </span>
-              <span className="text-[11px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
-                #{ticket._id.slice(-6).toUpperCase()}
-              </span>
-            </div>
-          )}
-        </div>
+      title="Update Ticket Status"
+      subtitle={
+        ticket ? (
+          <div className="truncate max-w-md mt-0.5">
+            Ticket: <strong className="text-gray-700">{ticket.title}</strong>
+          </div>
+        ) : undefined
       }
       open={open}
       onCancel={handleCancel}
-      footer={null}
-      destroyOnClose
-      centered
-      className="max-w-md"
+      maxWidth="md"
     >
       {submitError && (
         <Alert
@@ -163,7 +151,6 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
       )}
 
       <div className="space-y-4 pt-2">
-        {/* Current status display */}
         <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-600">Current Status:</span>
           {ticket && (
@@ -173,7 +160,6 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
           )}
         </div>
 
-        {/* Status Selection */}
         <div>
           <label
             htmlFor="ticket-status-select"
@@ -205,16 +191,15 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
           />
         </div>
 
-        {/* Modal Actions */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
-          <AppButton
+          <Button
             type="default"
             onClick={handleCancel}
             disabled={isSubmitting}
           >
             Cancel
-          </AppButton>
-          <AppButton
+          </Button>
+          <Button
             type="primary"
             onClick={handleSubmit}
             loading={isSubmitting}
@@ -227,7 +212,7 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
             icon={<CheckCircleOutlined />}
           >
             Update Status
-          </AppButton>
+          </Button>
         </div>
       </div>
     </Modal>

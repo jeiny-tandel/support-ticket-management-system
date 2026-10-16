@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Table, Tag, Select, Alert, Tooltip } from "antd";
+import { Table, Tag, Select, Alert, Tooltip, Input } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   PlusOutlined,
@@ -8,47 +8,69 @@ import {
   FilterOutlined,
   ClearOutlined,
   EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { useAppSelector } from "../../hooks";
-import { selectUserRole } from "../../store";
-import { getTicketsApi } from "../../api";
+import { ROUTES } from "../../constants/routes";
+import { useAppDispatch, useAppSelector } from "../../hooks";
+import {
+  selectUserRole,
+  selectTickets,
+  selectTicketsTotal,
+  selectTicketsPage,
+  selectTicketsLimit,
+  selectTicketsLoading,
+  selectTicketsError,
+  selectStatusFilter,
+  selectPriorityFilter,
+  selectSearchQuery,
+  fetchTickets,
+  setPagination,
+  setStatusFilter,
+  setPriorityFilter,
+  setSearchQuery,
+  clearFilters,
+} from "../../store";
 import type {
   Ticket,
   TicketPriority,
   TicketStatus,
   TicketUserSummary,
 } from "../../types";
-import { AppButton } from "../../components/common";
-import { CreateTicketModal } from "./components";
+import { Button } from "../../components/common";
+import { CreateTicketModal, DeleteTicketModal } from "./components";
+import { renderDueDateBadge } from "../../utils";
 
 export const TicketsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const userRole = useAppSelector(selectUserRole);
   const isAdmin = userRole === "ADMIN";
 
-  // Ticket data state
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(10);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const tickets = useAppSelector(selectTickets);
+  const total = useAppSelector(selectTicketsTotal);
+  const page = useAppSelector(selectTicketsPage);
+  const limit = useAppSelector(selectTicketsLimit);
+  const loading = useAppSelector(selectTicketsLoading);
+  const errorMessage = useAppSelector(selectTicketsError);
+  const statusFilter = useAppSelector(selectStatusFilter);
+  const priorityFilter = useAppSelector(selectPriorityFilter);
+  const searchQuery = useAppSelector(selectSearchQuery);
+  const [searchInput, setSearchInput] = useState<string>(searchQuery);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  // Filter state
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | undefined>(
-    undefined,
-  );
-  const [priorityFilter, setPriorityFilter] = useState<
-    TicketPriority | undefined
-  >(undefined);
-
-  // Modal state - initialize open if navigated with openCreateModal state for Admin
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(() => {
     const navState = location.state as { openCreateModal?: boolean } | null;
     return Boolean(navState?.openCreateModal && isAdmin);
   });
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [deletingTicket, setDeletingTicket] = useState<Ticket | null>(null);
 
   // Support navigation state updates if navigated while already mounted
   const [prevNavState, setPrevNavState] = useState(location.state);
@@ -68,72 +90,111 @@ export const TicketsPage: React.FC = () => {
     }
   }, [location.state, navigate, location.pathname]);
 
-  useEffect(() => {
-    let isMounted = true;
+  // Synchronize local input when searchQuery changes externally (e.g. clearFilters)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery);
+    setSearchInput(searchQuery);
+  }
 
-    getTicketsApi({
-      page,
-      limit,
-      status: statusFilter,
-      priority: priorityFilter,
-    })
-      .then((response) => {
-        if (isMounted) {
-          setTickets(response.items);
-          setTotal(response.total);
-          setErrorMessage(null);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err && typeof err === "object" && "message" in err
-              ? String((err as { message: unknown }).message)
-              : "Unable to load tickets. Please try again.";
-          setErrorMessage(msg);
-          setLoading(false);
-        }
-      });
+  // Debounce search query update to Redux to avoid duplicate/excessive API requests
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      if (trimmed !== searchQuery) {
+        dispatch(setSearchQuery(trimmed));
+      }
+    }, 350);
 
     return () => {
-      isMounted = false;
+      clearTimeout(handler);
     };
-  }, [page, limit, statusFilter, priorityFilter, refreshTrigger]);
+  }, [searchInput, searchQuery, dispatch]);
+
+  useEffect(() => {
+    dispatch(
+      fetchTickets({
+        page,
+        limit,
+        status: statusFilter,
+        priority: priorityFilter,
+        search: searchQuery.trim() || undefined,
+      }),
+    );
+  }, [
+    dispatch,
+    page,
+    limit,
+    statusFilter,
+    priorityFilter,
+    searchQuery,
+    refreshTrigger,
+  ]);
 
   const handleRefresh = () => {
-    setLoading(true);
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchInput(val);
+    if (!val) {
+      dispatch(setSearchQuery(""));
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    const trimmed = searchInput.trim();
+    if (trimmed !== searchQuery) {
+      dispatch(setSearchQuery(trimmed));
+    }
   };
 
   const handleViewTicket = (ticket: Ticket) => {
     navigate(`/tickets/${ticket._id}`, { state: { ticket } });
   };
 
+  const handleEditTicket = (ticket: Ticket) => {
+    setEditingTicket(ticket);
+    setCreateModalOpen(true);
+  };
+
+  const handleCreateTicket = () => {
+    setEditingTicket(null);
+    setCreateModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setCreateModalOpen(false);
+    setEditingTicket(null);
+  };
+
+  const handleDeleteTicket = (ticket: Ticket) => {
+    setDeletingTicket(ticket);
+    setDeleteModalOpen(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setDeletingTicket(null);
+  };
+
   const handleResetFilters = () => {
-    setLoading(true);
-    setStatusFilter(undefined);
-    setPriorityFilter(undefined);
-    setPage(1);
+    setSearchInput("");
+    dispatch(clearFilters());
     setRefreshTrigger((prev) => prev + 1);
   };
 
   const handleStatusChange = (val?: TicketStatus) => {
-    setLoading(true);
-    setStatusFilter(val);
-    setPage(1);
+    dispatch(setStatusFilter(val));
   };
 
   const handlePriorityChange = (val?: TicketPriority) => {
-    setLoading(true);
-    setPriorityFilter(val);
-    setPage(1);
+    dispatch(setPriorityFilter(val));
   };
 
   const handlePageChange = (newPage: number, newPageSize: number) => {
-    setLoading(true);
-    setPage(newPage);
-    setLimit(newPageSize);
+    dispatch(setPagination({ page: newPage, limit: newPageSize }));
   };
 
   const getStatusTag = (status: TicketStatus) => {
@@ -142,7 +203,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="blue"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
           >
             Open
           </Tag>
@@ -151,7 +212,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="orange"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
             In Progress
           </Tag>
@@ -160,7 +221,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="green"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
           >
             Resolved
           </Tag>
@@ -169,7 +230,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="default"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border text-gray-500 bg-gray-100/80 border-gray-200"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
           >
             Closed
           </Tag>
@@ -185,7 +246,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="red"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
           >
             High
           </Tag>
@@ -194,7 +255,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="gold"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
             Medium
           </Tag>
@@ -203,7 +264,7 @@ export const TicketsPage: React.FC = () => {
         return (
           <Tag
             color="cyan"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
           >
             Low
           </Tag>
@@ -219,7 +280,8 @@ export const TicketsPage: React.FC = () => {
   ) => {
     if (!userRef) {
       return (
-        <span className="inline-flex items-center text-xs text-gray-400 font-normal italic bg-gray-50 border border-dashed border-gray-200 px-2 py-0.5 rounded">
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 font-normal italic bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md">
+          <UserOutlined className="text-[11px]" />
           Unassigned
         </span>
       );
@@ -228,13 +290,13 @@ export const TicketsPage: React.FC = () => {
     if (typeof userRef === "object") {
       const initial = userRef.name ? userRef.name.charAt(0).toUpperCase() : "?";
       return (
-        <Tooltip title={userRef.email}>
-          <div className="flex items-center gap-2 max-w-37.5">
+        <Tooltip title={`${userRef.name} (${userRef.email})`}>
+          <div className="inline-flex items-center gap-2 max-w-44">
             <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 border ${
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border ${
                 isAssignee
-                  ? "bg-indigo-50 border-indigo-200/70 text-indigo-600"
-                  : "bg-gray-100 border-gray-200/80 text-gray-600"
+                  ? "bg-purple-100 text-purple-700 border-purple-200/80"
+                  : "bg-gray-100 text-gray-600 border-gray-200/80"
               }`}
             >
               {initial}
@@ -248,8 +310,9 @@ export const TicketsPage: React.FC = () => {
     }
 
     return (
-      <span className="font-mono text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-        #{userRef.slice(-6).toUpperCase()}
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 font-normal bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md">
+        <UserOutlined className="text-[11px] text-gray-400" />
+        {isAssignee ? "Assigned Agent" : "User"}
       </span>
     );
   };
@@ -262,16 +325,14 @@ export const TicketsPage: React.FC = () => {
       width: 320,
       render: (_title: string, record: Ticket) => (
         <div
-          className="flex items-center gap-2.5 py-1 cursor-pointer group"
+          className="flex items-center py-1 cursor-pointer group"
           onClick={() => handleViewTicket(record)}
-          title="Click to view ticket details"
         >
-          <span className="text-xs font-mono font-medium text-gray-400 bg-gray-100/90 border border-gray-200/60 px-1.5 py-0.5 rounded shrink-0">
-            #{record._id.slice(-6).toUpperCase()}
-          </span>
-          <span className="font-medium text-gray-900 text-sm leading-snug group-hover:text-indigo-600 transition-colors line-clamp-1">
-            {record.title}
-          </span>
+          <Tooltip title={record.title} placement="topLeft">
+            <span className="font-semibold text-gray-900 text-sm leading-snug group-hover:text-purple-700 transition-colors truncate">
+              {record.title}
+            </span>
+          </Tooltip>
         </div>
       ),
     },
@@ -294,10 +355,18 @@ export const TicketsPage: React.FC = () => {
       ),
     },
     {
+      title: "Due Date",
+      dataIndex: "dueDate",
+      key: "dueDate",
+      width: 165,
+      render: (dueDate: string | null | undefined, record: Ticket) =>
+        renderDueDateBadge(dueDate, record.status),
+    },
+    {
       title: "Created By",
       dataIndex: "createdById",
       key: "createdById",
-      width: 155,
+      width: 165,
       render: (createdById: TicketUserSummary | string) =>
         renderUserBadge(createdById, false),
     },
@@ -305,7 +374,7 @@ export const TicketsPage: React.FC = () => {
       title: "Assigned To",
       dataIndex: "assignedToId",
       key: "assignedToId",
-      width: 165,
+      width: 175,
       render: (assignedToId?: TicketUserSummary | string | null) =>
         renderUserBadge(assignedToId, true),
     },
@@ -313,9 +382,10 @@ export const TicketsPage: React.FC = () => {
       title: "Created Date",
       dataIndex: "createdAt",
       key: "createdAt",
-      width: 130,
+      width: 140,
       render: (createdAt: string) => (
-        <span className="text-xs text-gray-500 whitespace-nowrap tabular-nums">
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">
+          <CalendarOutlined className="text-[11px] text-gray-400" />
           {new Date(createdAt).toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
@@ -327,30 +397,63 @@ export const TicketsPage: React.FC = () => {
     {
       title: "Actions",
       key: "actions",
-      width: 80,
+      width: 125,
       align: "center",
       render: (_: unknown, record: Ticket) => (
-        <Tooltip title="View ticket">
-          <AppButton
-            type="text"
-            size="small"
-            onClick={() => handleViewTicket(record)}
-            icon={
-              <EyeOutlined className="text-gray-500 hover:text-indigo-600 text-base" />
-            }
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-indigo-50/70 transition-colors mx-auto"
-            aria-label="View ticket"
-          />
-        </Tooltip>
+        <div className="flex items-center justify-center gap-1">
+          <Tooltip title="View ticket details">
+            <Button
+              type="text"
+              size="small"
+              onClick={() => handleViewTicket(record)}
+              icon={
+                <EyeOutlined className="text-gray-400 group-hover:text-purple-600 text-sm" />
+              }
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 transition-colors text-gray-500 hover:text-purple-700"
+              aria-label="View ticket"
+            />
+          </Tooltip>
+
+          {isAdmin && (
+            <>
+              <Tooltip title="Edit ticket">
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => handleEditTicket(record)}
+                  icon={
+                    <EditOutlined className="text-gray-400 group-hover:text-purple-600 text-sm" />
+                  }
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 transition-colors text-gray-500 hover:text-purple-700"
+                  aria-label="Edit ticket"
+                />
+              </Tooltip>
+
+              <Tooltip title="Delete ticket">
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => handleDeleteTicket(record)}
+                  icon={
+                    <DeleteOutlined className="text-gray-400 group-hover:text-rose-600 text-sm" />
+                  }
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-50 transition-colors text-gray-500 hover:text-rose-600"
+                  aria-label="Delete ticket"
+                />
+              </Tooltip>
+            </>
+          )}
+        </div>
       ),
     },
   ];
 
-  const hasActiveFilters = Boolean(statusFilter || priorityFilter);
+  const hasActiveFilters = Boolean(
+    statusFilter || priorityFilter || searchQuery.trim(),
+  );
 
   return (
     <div className="pb-8">
-      {/* Scoped CSS for polished SaaS table styling */}
       <style>{`
         .solvix-tickets-table .ant-table {
           background: transparent;
@@ -359,7 +462,7 @@ export const TicketsPage: React.FC = () => {
           background-color: #f8fafc !important;
           color: #475569 !important;
           font-size: 0.75rem !important;
-          font-weight: 600 !important;
+          font-weight: 700 !important;
           text-transform: uppercase !important;
           letter-spacing: 0.05em !important;
           border-bottom: 1px solid #e2e8f0 !important;
@@ -367,7 +470,7 @@ export const TicketsPage: React.FC = () => {
           white-space: nowrap !important;
         }
         .solvix-tickets-table .ant-table-tbody > tr > td {
-          padding: 14px 16px !important;
+          padding: 13px 16px !important;
           border-bottom: 1px solid #f1f5f9 !important;
           vertical-align: middle !important;
         }
@@ -375,7 +478,7 @@ export const TicketsPage: React.FC = () => {
           border-bottom: none !important;
         }
         .solvix-tickets-table .ant-table-tbody > tr:hover > td {
-          background-color: #fafbfc !important;
+          background-color: #fcfaff !important;
         }
         .solvix-tickets-table .ant-pagination {
           display: flex;
@@ -384,12 +487,18 @@ export const TicketsPage: React.FC = () => {
         }
       `}</style>
 
-      {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 m-0">
-            Support Tickets
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 m-0">
+              Support Tickets
+            </h1>
+            {!loading && (
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 tabular-nums">
+                {total} {total === 1 ? "Ticket" : "Tickets"}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-gray-500 m-0">
             {isAdmin
               ? "Manage, prioritize, and assign tickets across the organization."
@@ -398,37 +507,56 @@ export const TicketsPage: React.FC = () => {
         </div>
 
         {isAdmin && (
-          <AppButton
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setCreateModalOpen(true)}
-            className="h-10 px-4 font-medium shadow-sm hover:shadow transition-all shrink-0 self-start sm:self-auto"
-          >
-            Create Ticket
-          </AppButton>
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+            <Button
+              type="default"
+              icon={<DeleteOutlined className="text-gray-500" />}
+              onClick={() => navigate(ROUTES.DELETED_TICKETS)}
+              className="h-10 px-3.5 text-xs font-medium text-gray-700 bg-white border-gray-200 hover:border-purple-300 hover:text-purple-600 rounded-lg shadow-2xs transition-colors"
+            >
+              Deleted Tickets
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreateTicket}
+              className="h-10 px-4 font-semibold bg-purple-600 hover:bg-purple-700 border-purple-600 shadow-sm hover:shadow transition-all"
+            >
+              Create Ticket
+            </Button>
+          </div>
         )}
       </div>
 
-      {/* 2. Refined Filter and Controls Toolbar */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs px-4 py-3 mb-6 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Left filters group */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider select-none mr-0.5">
-              <FilterOutlined className="text-gray-400 text-xs" />
+            <Input
+              placeholder="Search tickets..."
+              prefix={<SearchOutlined className="text-gray-400 text-sm" />}
+              value={searchInput}
+              onChange={handleSearchChange}
+              onPressEnter={handleSearchSubmit}
+              allowClear
+              className="w-full sm:w-64 md:w-72 h-10 rounded-lg text-sm"
+            />
+
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider select-none mr-1">
+              <FilterOutlined className="text-purple-600 text-xs" />
               <span>Filters</span>
             </span>
 
-            {/* Status Filter */}
-            <Select<TicketStatus | undefined>
-              placeholder="Status: All"
-              value={statusFilter}
-              onChange={handleStatusChange}
-              allowClear
-              className="w-36 sm:w-40"
+            <Select<string>
+              value={statusFilter ?? "ALL"}
+              onChange={(val) => {
+                handleStatusChange(
+                  val === "ALL" || !val ? undefined : (val as TicketStatus),
+                );
+              }}
+              className="w-36 sm:w-44"
               popupMatchSelectWidth={false}
               options={[
-                { label: "All Statuses", value: undefined },
+                { label: "All Statuses", value: "ALL" },
                 { label: "Open", value: "OPEN" },
                 { label: "In Progress", value: "IN_PROGRESS" },
                 { label: "Resolved", value: "RESOLVED" },
@@ -436,56 +564,54 @@ export const TicketsPage: React.FC = () => {
               ]}
             />
 
-            {/* Priority Filter */}
-            <Select<TicketPriority | undefined>
-              placeholder="Priority: All"
-              value={priorityFilter}
-              onChange={handlePriorityChange}
-              allowClear
-              className="w-36 sm:w-40"
+            <Select<string>
+              value={priorityFilter ?? "ALL"}
+              onChange={(val) => {
+                handlePriorityChange(
+                  val === "ALL" || !val ? undefined : (val as TicketPriority),
+                );
+              }}
+              className="w-36 sm:w-44"
               popupMatchSelectWidth={false}
               options={[
-                { label: "All Priorities", value: undefined },
+                { label: "All Priorities", value: "ALL" },
                 { label: "High Priority", value: "HIGH" },
                 { label: "Medium Priority", value: "MEDIUM" },
                 { label: "Low Priority", value: "LOW" },
               ]}
             />
 
-            {/* Clear Filters Button */}
             {hasActiveFilters && (
-              <AppButton
+              <Button
                 type="text"
                 size="middle"
                 onClick={handleResetFilters}
                 icon={<ClearOutlined />}
-                className="text-xs font-medium text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/60 h-10 px-2.5 rounded-lg transition-colors"
+                className="text-xs font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-50/80 h-10 px-3 rounded-lg border border-purple-100 transition-colors"
               >
-                Reset
-              </AppButton>
+                Reset Filters
+              </Button>
             )}
           </div>
 
-          {/* Right actions group */}
           <div className="flex items-center justify-end gap-2 shrink-0">
             <Tooltip title="Refresh ticket list">
-              <AppButton
+              <Button
                 type="default"
                 onClick={handleRefresh}
                 icon={
                   <ReloadOutlined spin={loading} className="text-gray-500" />
                 }
                 disabled={loading}
-                className="h-10 px-3.5 text-xs font-medium text-gray-700 bg-white border-gray-200 hover:border-indigo-400 hover:text-indigo-600 rounded-lg shadow-2xs transition-colors"
+                className="h-10 px-4 text-xs font-semibold text-gray-700 bg-white border-gray-200 hover:border-purple-400 hover:text-purple-600 rounded-lg shadow-2xs transition-colors"
               >
                 Refresh
-              </AppButton>
+              </Button>
             </Tooltip>
           </div>
         </div>
       </div>
 
-      {/* Error Feedback */}
       {errorMessage && (
         <Alert
           type="error"
@@ -493,22 +619,42 @@ export const TicketsPage: React.FC = () => {
           message="Failed to load tickets"
           description={errorMessage}
           action={
-            <AppButton size="small" type="primary" onClick={handleRefresh}>
+            <Button size="small" type="primary" onClick={handleRefresh}>
               Retry
-            </AppButton>
+            </Button>
           }
           className="mb-6 rounded-xl border border-red-100 shadow-2xs"
         />
       )}
 
-      {/* 3. Flush Compact Tickets Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs overflow-hidden">
         <Table<Ticket>
           rowKey="_id"
           columns={columns}
           dataSource={tickets}
           loading={loading}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: hasActiveFilters ? (
+              <div className="py-12 text-center">
+                <SearchOutlined className="text-3xl text-gray-300 mb-2" />
+                <p className="text-sm font-semibold text-gray-700 m-0">
+                  No tickets found
+                </p>
+                <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                  No tickets matched your current search criteria and filters.
+                </p>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={handleResetFilters}
+                  className="mt-2 text-purple-600 hover:text-purple-700 p-0"
+                >
+                  Clear all filters
+                </Button>
+              </div>
+            ) : undefined,
+          }}
           pagination={{
             current: page,
             pageSize: limit,
@@ -518,10 +664,10 @@ export const TicketsPage: React.FC = () => {
             showTotal: (totalCount, range) => (
               <span className="text-xs text-gray-500 font-normal">
                 Showing{" "}
-                <strong className="text-gray-700">
+                <strong className="text-gray-700 font-semibold">
                   {range[0]}-{range[1]}
                 </strong>{" "}
-                of <strong className="text-gray-700">{totalCount}</strong>{" "}
+                of <strong className="text-gray-700 font-semibold">{totalCount}</strong>{" "}
                 tickets
               </span>
             ),
@@ -533,13 +679,22 @@ export const TicketsPage: React.FC = () => {
         />
       </div>
 
-      {/* Create Ticket Modal for Admin */}
       {isAdmin && (
-        <CreateTicketModal
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSuccess={handleRefresh}
-        />
+        <>
+          <CreateTicketModal
+            open={createModalOpen}
+            ticket={editingTicket}
+            onClose={handleCloseModal}
+            onSuccess={handleRefresh}
+          />
+
+          <DeleteTicketModal
+            open={deleteModalOpen}
+            ticket={deletingTicket}
+            onClose={handleCloseDeleteModal}
+            onSuccess={handleRefresh}
+          />
+        </>
       )}
     </div>
   );

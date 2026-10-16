@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -11,7 +12,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { Permission } from '../common/enums';
@@ -25,8 +26,10 @@ import {
   AssignTicketDto,
   CreateCommentDto,
   CreateTicketDto,
+  DeleteTicketDto,
   GetTicketsQueryDto,
   UpdateTicketStatusDto,
+  UpdateTicketDto,
 } from './dto';
 import { TicketDocument, CommentDocument } from './schemas';
 
@@ -73,6 +76,32 @@ export class TicketsController {
     return this.ticketsService.getSummary(req.user);
   }
 
+  @Get('deleted')
+  @Permissions(Permission.MANAGE_TICKETS)
+  @HttpCode(HttpStatus.OK)
+  async getDeletedTickets(
+    @Query() query: GetTicketsQueryDto,
+    @Request()
+    req: {
+      user: AuthenticatedUserContext;
+    },
+  ): Promise<PaginatedTicketsResult> {
+    return this.ticketsService.getDeletedTickets(query, req.user);
+  }
+
+  @Get(':id')
+  @Permissions(Permission.VIEW_ASSIGNED_TICKETS)
+  @HttpCode(HttpStatus.OK)
+  async getTicketById(
+    @Param('id') id: string,
+    @Request()
+    req: {
+      user: AuthenticatedUserContext;
+    },
+  ): Promise<TicketDocument> {
+    return this.ticketsService.getTicketById(id, req.user);
+  }
+
   @Patch(':id/assign')
   @Permissions(Permission.MANAGE_TICKETS)
   @HttpCode(HttpStatus.OK)
@@ -99,6 +128,34 @@ export class TicketsController {
       updateTicketStatusDto,
       req.user,
     );
+  }
+
+  @Patch(':id')
+  @Permissions(Permission.MANAGE_TICKETS)
+  @HttpCode(HttpStatus.OK)
+  async updateTicket(
+    @Param('id') id: string,
+    @Body() updateTicketDto: UpdateTicketDto,
+    @Request()
+    req: {
+      user: AuthenticatedUserContext;
+    },
+  ): Promise<TicketDocument> {
+    return this.ticketsService.updateTicket(id, updateTicketDto, req.user);
+  }
+
+  @Delete(':id')
+  @Permissions(Permission.MANAGE_TICKETS)
+  @HttpCode(HttpStatus.OK)
+  async deleteTicket(
+    @Param('id') id: string,
+    @Body() deleteTicketDto: DeleteTicketDto,
+    @Request()
+    req: {
+      user: AuthenticatedUserContext;
+    },
+  ): Promise<TicketDocument> {
+    return this.ticketsService.deleteTicket(id, deleteTicketDto, req.user);
   }
 
   @Post(':id/comments')

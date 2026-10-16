@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { AUTH_TOKEN_KEY } from '../../constants/auth';
-import type { AuthState } from '../../types';
+import type { AuthState, User } from '../../types';
 import { fetchCurrentUser, login, registerAgent } from './authThunk';
 
 const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -34,7 +34,6 @@ export const authSlice = createSlice({
       state.isInitialized = true;
     },
     setToken: (state, action: PayloadAction<string | null>) => {
-
       state.token = action.payload;
       if (action.payload) {
         localStorage.setItem(AUTH_TOKEN_KEY, action.payload);
@@ -42,9 +41,11 @@ export const authSlice = createSlice({
         localStorage.removeItem(AUTH_TOKEN_KEY);
       }
     },
+    updateUser: (state, action: PayloadAction<User>) => {
+      state.user = action.payload;
+    },
   },
   extraReducers: (builder) => {
-    // login
     builder
       .addCase(login.pending, (state) => {
         state.isLoading = true;
@@ -66,7 +67,6 @@ export const authSlice = createSlice({
         state.error = action.payload ?? 'Login failed';
       });
 
-    // registerAgent
     builder
       .addCase(registerAgent.pending, (state) => {
         state.isLoading = true;
@@ -88,7 +88,6 @@ export const authSlice = createSlice({
         state.error = action.payload ?? 'Registration failed';
       });
 
-    // fetchCurrentUser
     builder
       .addCase(fetchCurrentUser.pending, (state) => {
         state.isLoading = true;
@@ -116,7 +115,7 @@ export const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, setInitialized, setToken } =
+export const { logout, clearError, setInitialized, setToken, updateUser } =
   authSlice.actions;
 export const authReducer = authSlice.reducer;
 

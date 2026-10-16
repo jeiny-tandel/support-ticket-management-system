@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Result } from "antd";
-import { AppButton } from "../../components/common";
+import { Button } from "../../components/common";
 import { ROUTES } from "../../constants/routes";
 
 export const NotFoundPage: React.FC = () => {
@@ -13,7 +13,7 @@ export const NotFoundPage: React.FC = () => {
         subTitle="Sorry, the page you visited does not exist."
         extra={
           <Link to={ROUTES.DASHBOARD}>
-            <AppButton type="primary">Back to Dashboard</AppButton>
+            <Button type="primary">Back to Dashboard</Button>
           </Link>
         }
       />

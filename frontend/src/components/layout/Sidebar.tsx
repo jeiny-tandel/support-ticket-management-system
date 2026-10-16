@@ -1,13 +1,14 @@
-import React from 'react';
-import { Layout, Menu, type MenuProps } from 'antd';
+import React from "react";
+import { Layout, Menu, type MenuProps } from "antd";
 import {
   DashboardOutlined,
   CustomerServiceOutlined,
   TeamOutlined,
   UserOutlined,
   SettingOutlined,
-} from '@ant-design/icons';
-import { AppLogo } from '../common/AppLogo';
+  DeleteOutlined,
+} from "@ant-design/icons";
+import { Logo } from "../common/Logo";
 
 const { Sider } = Layout;
 
@@ -20,7 +21,7 @@ export interface SidebarItem {
   disabled?: boolean;
 }
 
-export interface AppSidebarProps {
+export interface SidebarProps {
   /** Whether the sidebar is collapsed */
   collapsed?: boolean;
   /** Callback triggered when collapse state changes */
@@ -41,16 +42,18 @@ export interface AppSidebarProps {
 
 const getMenuIcon = (iconName?: string): React.ReactNode => {
   switch (iconName) {
-    case 'DashboardOutlined':
+    case "DashboardOutlined":
       return <DashboardOutlined />;
-    case 'CustomerServiceOutlined':
+    case "CustomerServiceOutlined":
       return <CustomerServiceOutlined />;
-    case 'TeamOutlined':
+    case "TeamOutlined":
       return <TeamOutlined />;
-    case 'UserOutlined':
+    case "UserOutlined":
       return <UserOutlined />;
-    case 'SettingOutlined':
+    case "SettingOutlined":
       return <SettingOutlined />;
+    case "DeleteOutlined":
+      return <DeleteOutlined />;
     default:
       return null;
   }
@@ -60,7 +63,7 @@ const getMenuIcon = (iconName?: string): React.ReactNode => {
  * Reusable sidebar navigation component wrapping Ant Design Layout.Sider.
  * Anchored to the dashboard viewport, collapsible without independent scroll jumping.
  */
-export const AppSidebar: React.FC<AppSidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onCollapse,
   items,
@@ -68,16 +71,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onSelectKey,
   brand,
   footer,
-  className = '',
+  className = "",
 }) => {
-  const menuItems: MenuProps['items'] = items.map((item) => ({
+  const menuItems: MenuProps["items"] = items.map((item) => ({
     key: item.key,
     icon: item.icon ?? getMenuIcon(item.iconName),
     label: item.label,
     disabled: item.disabled,
   }));
 
-  const handleMenuClick: MenuProps['onClick'] = (info) => {
+  const handleMenuClick: MenuProps["onClick"] = (info) => {
     if (onSelectKey) {
       const selectedItem = items.find((item) => item.key === info.key);
       if (selectedItem) {
@@ -92,17 +95,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       collapsed={collapsed}
       onCollapse={onCollapse}
       trigger={null}
-      width={240}
+      width={200}
       collapsedWidth={80}
       theme="light"
-      style={{ backgroundColor: '#ffffff' }}
+      style={{ backgroundColor: "#ffffff" }}
       className={`border-r border-gray-100 h-screen shrink-0 sticky top-0 left-0 z-20 flex flex-col justify-between ${className}`}
     >
       <div className="flex flex-col h-full overflow-hidden">
         <div className="h-16 px-5 flex items-center border-b border-gray-100 shrink-0 overflow-hidden">
           {brand ?? (
-            <AppLogo
-              size={collapsed ? 'small' : 'middle'}
+            <Logo
+              size={collapsed ? "small" : "middle"}
               showText={!collapsed}
             />
           )}
@@ -119,13 +122,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </div>
 
         {footer && (
-          <div className="p-4 border-t border-gray-100 shrink-0">
-            {footer}
-          </div>
+          <div className="p-4 border-t border-gray-100 shrink-0">{footer}</div>
         )}
       </div>
     </Sider>
   );
 };
 
-export default AppSidebar;
+export default Sidebar;

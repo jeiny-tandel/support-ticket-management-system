@@ -1,4 +1,11 @@
-import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TicketPriority } from '../../common/enums';
 
@@ -24,4 +31,14 @@ export class CreateTicketDto {
   })
   @IsNotEmpty({ message: 'Priority is required' })
   priority: TicketPriority;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }): unknown =>
+    value === '' ? null : value,
+  )
+  @IsDateString(
+    {},
+    { message: 'Due date must be a valid ISO 8601 date string' },
+  )
+  dueDate?: string | null;
 }

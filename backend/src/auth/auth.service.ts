@@ -5,15 +5,18 @@ import { UserRole } from '../common/enums';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+
+export interface SafeUserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
 export interface LoginResponse {
   accessToken: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
+  user: SafeUserProfile;
 }
 
 @Injectable()
@@ -82,6 +85,23 @@ export class AuthService {
         email: newUser.email,
         role: newUser.role,
       },
+    };
+  }
+
+  async updateProfile(
+    userId: string,
+    updateProfileDto: UpdateProfileDto,
+  ): Promise<SafeUserProfile> {
+    const updatedUser = await this.usersService.updateProfile(
+      userId,
+      updateProfileDto.name,
+    );
+
+    return {
+      id: updatedUser._id.toString(),
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
     };
   }
 }

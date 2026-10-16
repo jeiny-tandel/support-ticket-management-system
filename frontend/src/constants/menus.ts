@@ -27,6 +27,13 @@ export const MAIN_MENU_ITEMS: readonly MenuItem[] = [
     requiredPermission: PERMISSIONS.VIEW_ASSIGNED_TICKETS,
   },
   {
+    key: 'deleted-tickets',
+    label: 'Deleted Tickets',
+    path: ROUTES.DELETED_TICKETS,
+    iconName: 'DeleteOutlined',
+    requiredPermission: PERMISSIONS.MANAGE_TICKETS,
+  },
+  {
     key: 'users',
     label: 'Users',
     path: ROUTES.USERS,

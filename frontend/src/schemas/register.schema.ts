@@ -5,11 +5,7 @@ export interface RegisterFormData extends RegisterAgentCredentials {
   confirmPassword: string;
 }
 
-/**
- * Validation schema for Support Agent self-registration.
- * Aligns with backend RegisterDto validation constraints (6 char min password).
- * Includes client-side confirmPassword matching validation.
- */
+/** Validation schema for Support Agent self-registration. */
 export const registerSchema: Yup.ObjectSchema<RegisterFormData> = Yup.object({
   name: Yup.string().trim().required('Name is required'),
   email: Yup.string()

@@ -1,8 +1,21 @@
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TicketPriority, TicketStatus } from '../../common/enums';
 
 export class GetTicketsQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'Search query cannot exceed 100 characters' })
+  search?: string;
+
   @IsOptional()
   @IsEnum(TicketStatus, {
     message: 'Status must be one of OPEN, IN_PROGRESS, RESOLVED, CLOSED',

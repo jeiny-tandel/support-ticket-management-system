@@ -1,124 +1,82 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Tag, Alert, Empty } from "antd";
 import {
   PlusOutlined,
   ReloadOutlined,
   RightOutlined,
   UserOutlined,
+  UserDeleteOutlined,
   InboxOutlined,
   ClockCircleOutlined,
   SyncOutlined,
   CheckCircleOutlined,
   CheckOutlined,
+  CalendarOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
-import { PageHeader, AppButton, AppCard } from "../../components/common";
+import { PageHeader, Button, Card } from "../../components/common";
 import { ROUTES } from "../../constants/routes";
-import { useAppSelector } from "../../hooks";
-import { selectCurrentUser, selectUserRole } from "../../store";
-import { getTicketSummaryApi, getTicketsApi } from "../../api";
+import { useAppDispatch, useAppSelector } from "../../hooks";
+import {
+  selectCurrentUser,
+  selectUserRole,
+  selectTicketSummary,
+  selectSummaryLoading,
+  selectSummaryError,
+  selectRecentTickets,
+  selectRecentLoading,
+  selectRecentError,
+  fetchTicketSummary,
+  fetchRecentTickets,
+} from "../../store";
 import type {
   Ticket,
   TicketPriority,
   TicketStatus,
-  TicketSummaryResponse,
 } from "../../types";
+import {
+  TicketStatusDonut,
+  QueueHealthCard,
+  TicketPriorityChart,
+  DeadlineOverviewCards,
+  UpcomingOverdueCard,
+} from "./components";
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const currentUser = useAppSelector(selectCurrentUser);
   const userRole = useAppSelector(selectUserRole);
   const isAdmin = userRole === "ADMIN";
 
-  // Summary metrics state
-  const [summary, setSummary] = useState<TicketSummaryResponse | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState<boolean>(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [summaryRefresh, setSummaryRefresh] = useState<number>(0);
+  const summary = useAppSelector(selectTicketSummary);
+  const summaryLoading = useAppSelector(selectSummaryLoading);
+  const summaryError = useAppSelector(selectSummaryError);
 
-  // Recent tickets state
-  const [recentTickets, setRecentTickets] = useState<Ticket[]>([]);
-  const [recentLoading, setRecentLoading] = useState<boolean>(true);
-  const [recentError, setRecentError] = useState<string | null>(null);
-  const [recentRefresh, setRecentRefresh] = useState<number>(0);
+  const recentTickets = useAppSelector(selectRecentTickets);
+  const recentLoading = useAppSelector(selectRecentLoading);
+  const recentError = useAppSelector(selectRecentError);
 
-  // Combined refresh state
   const isRefreshing = summaryLoading || recentLoading;
 
-  // Fetch summary metrics
   useEffect(() => {
-    let isMounted = true;
-
-    getTicketSummaryApi()
-      .then((data) => {
-        if (isMounted) {
-          setSummary(data);
-          setSummaryLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err && typeof err === "object" && "message" in err
-              ? String((err as { message: unknown }).message)
-              : "Failed to load ticket metrics.";
-          setSummaryError(msg);
-          setSummaryLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [summaryRefresh]);
-
-  // Fetch recent tickets (up to 5)
-  useEffect(() => {
-    let isMounted = true;
-
-    getTicketsApi({ page: 1, limit: 5 })
-      .then((res) => {
-        if (isMounted) {
-          setRecentTickets(res.items);
-          setRecentLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err && typeof err === "object" && "message" in err
-              ? String((err as { message: unknown }).message)
-              : "Failed to load recent tickets.";
-          setRecentError(msg);
-          setRecentLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [recentRefresh]);
+    dispatch(fetchTicketSummary());
+    dispatch(fetchRecentTickets());
+  }, [dispatch]);
 
   const handleRefreshAll = () => {
     if (isRefreshing) return;
-    setSummaryLoading(true);
-    setSummaryError(null);
-    setRecentLoading(true);
-    setRecentError(null);
-    setSummaryRefresh((prev) => prev + 1);
-    setRecentRefresh((prev) => prev + 1);
+    dispatch(fetchTicketSummary());
+    dispatch(fetchRecentTickets());
   };
 
   const handleRetrySummary = () => {
-    setSummaryLoading(true);
-    setSummaryError(null);
-    setSummaryRefresh((prev) => prev + 1);
+    dispatch(fetchTicketSummary());
   };
 
   const handleRetryRecent = () => {
-    setRecentLoading(true);
-    setRecentError(null);
-    setRecentRefresh((prev) => prev + 1);
+    dispatch(fetchRecentTickets());
   };
 
   const handleViewTicket = (ticket: Ticket) => {
@@ -131,7 +89,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="blue"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
           >
             Open
           </Tag>
@@ -140,7 +98,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="orange"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
             In Progress
           </Tag>
@@ -149,7 +107,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="green"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
           >
             Resolved
           </Tag>
@@ -158,7 +116,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="default"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border text-gray-500 bg-gray-100/80 border-gray-200"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
           >
             Closed
           </Tag>
@@ -174,7 +132,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="red"
-            className="m-0 text-xs font-medium px-2 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
           >
             High
           </Tag>
@@ -183,7 +141,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="gold"
-            className="m-0 text-xs font-medium px-2 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
             Medium
           </Tag>
@@ -192,7 +150,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <Tag
             color="cyan"
-            className="m-0 text-xs font-medium px-2 py-0.5 rounded-full border"
+            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
           >
             Low
           </Tag>
@@ -202,69 +160,101 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  // Header text configuration
   const greeting = currentUser?.name
     ? `Welcome back, ${currentUser.name}`
     : "Welcome to SolviX";
 
   const subtitle = isAdmin
-    ? "Organization-wide overview of support activity and queue health."
-    : "Overview of tickets assigned to your support queue.";
+    ? "Organization-wide overview of support activity, queue health, and ticket lifecycles."
+    : "Overview of tickets and workload assigned to your active support queue.";
 
-  const metricCards = [
+  const totalTickets = summary?.total ?? 0;
+
+  const getSharePill = (count?: number) => {
+    if (typeof count !== "number" || totalTickets === 0) {
+      return "0% of total";
+    }
+    return `${Math.round((count / totalTickets) * 100)}% of total`;
+  };
+
+  const baseMetricCards = [
     {
       label: "Total Tickets",
       count: summary?.total,
-      subtext: "All workspace tickets",
+      subtext: "Workspace total volume",
+      shareText: "100% volume",
       valueColor: "text-indigo-950",
+      accentBorder: "border-t-4 border-t-indigo-500",
       icon: <InboxOutlined className="text-base" />,
-      iconBoxClass:
-        "bg-indigo-50 text-indigo-600 border border-indigo-100/80",
-      cardExtraClass:
-        "sm:col-span-2 lg:col-span-1 border-indigo-200/70 bg-gradient-to-br from-indigo-50/50 via-white to-white shadow-sm hover:shadow-md",
+      iconBoxClass: "bg-indigo-50 text-indigo-600 border border-indigo-100",
+      sharePillClass:
+        "bg-indigo-50 text-indigo-700 border border-indigo-100/80",
     },
     {
       label: "Open Tickets",
       count: summary?.open,
-      subtext: "Awaiting triage",
+      subtext: "Awaiting initial triage",
+      shareText: getSharePill(summary?.open),
       valueColor: "text-blue-600",
+      accentBorder: "border-t-4 border-t-blue-500",
       icon: <ClockCircleOutlined className="text-base" />,
-      iconBoxClass: "bg-blue-50 text-blue-600 border border-blue-100/80",
-      cardExtraClass: "hover:shadow-md",
+      iconBoxClass: "bg-blue-50 text-blue-600 border border-blue-100",
+      sharePillClass: "bg-blue-50 text-blue-700 border border-blue-100/80",
     },
     {
       label: "In Progress",
       count: summary?.inProgress,
       subtext: "Active investigation",
+      shareText: getSharePill(summary?.inProgress),
       valueColor: "text-amber-600",
+      accentBorder: "border-t-4 border-t-amber-500",
       icon: <SyncOutlined className="text-base" />,
-      iconBoxClass: "bg-amber-50 text-amber-600 border border-amber-100/80",
-      cardExtraClass: "hover:shadow-md",
+      iconBoxClass: "bg-amber-50 text-amber-600 border border-amber-100",
+      sharePillClass: "bg-amber-50 text-amber-700 border border-amber-100/80",
     },
     {
       label: "Resolved",
       count: summary?.resolved,
-      subtext: "Successfully solved",
+      subtext: "Successfully verified",
+      shareText: getSharePill(summary?.resolved),
       valueColor: "text-emerald-600",
+      accentBorder: "border-t-4 border-t-emerald-500",
       icon: <CheckCircleOutlined className="text-base" />,
-      iconBoxClass:
-        "bg-emerald-50 text-emerald-600 border border-emerald-100/80",
-      cardExtraClass: "hover:shadow-md",
+      iconBoxClass: "bg-emerald-50 text-emerald-600 border border-emerald-100",
+      sharePillClass:
+        "bg-emerald-50 text-emerald-700 border border-emerald-100/80",
     },
     {
       label: "Closed",
       count: summary?.closed,
       subtext: "Archived & finalized",
+      shareText: getSharePill(summary?.closed),
       valueColor: "text-slate-600",
+      accentBorder: "border-t-4 border-t-slate-400",
       icon: <CheckOutlined className="text-base" />,
-      iconBoxClass: "bg-slate-100 text-slate-600 border border-slate-200/80",
-      cardExtraClass: "hover:shadow-md",
+      iconBoxClass: "bg-slate-100 text-slate-600 border border-slate-200",
+      sharePillClass: "bg-slate-100 text-slate-700 border border-slate-200/80",
     },
   ];
 
+  const unassignedCard = {
+    label: "Unassigned",
+    count: summary?.unassigned,
+    subtext: "Pending agent assignment",
+    shareText: getSharePill(summary?.unassigned),
+    valueColor: "text-rose-600",
+    accentBorder: "border-t-4 border-t-rose-500",
+    icon: <UserDeleteOutlined className="text-base" />,
+    iconBoxClass: "bg-rose-50 text-rose-600 border border-rose-100",
+    sharePillClass: "bg-rose-50 text-rose-700 border border-rose-100/80",
+  };
+
+  const metricCards = isAdmin
+    ? [...baseMetricCards, unassignedCard]
+    : baseMetricCards;
+
   return (
-    <div>
-      {/* 1. Header with greeting, role badge, and actions */}
+    <div className="pb-8">
       <PageHeader
         title={
           <div className="flex flex-wrap items-center gap-3">
@@ -289,7 +279,7 @@ export const DashboardPage: React.FC = () => {
         subtitle={subtitle}
         extra={
           <div className="flex items-center gap-2.5">
-            <AppButton
+            <Button
               icon={<ReloadOutlined spin={isRefreshing} />}
               loading={isRefreshing}
               disabled={isRefreshing}
@@ -297,23 +287,22 @@ export const DashboardPage: React.FC = () => {
               className="h-10 px-3.5"
             >
               Refresh
-            </AppButton>
+            </Button>
             {isAdmin && (
               <Link to={ROUTES.TICKETS} state={{ openCreateModal: true }}>
-                <AppButton
+                <Button
                   type="primary"
                   icon={<PlusOutlined />}
-                  className="h-10 px-4"
+                  className="h-10 px-4 bg-purple-600 hover:bg-purple-700 border-purple-600"
                 >
                   Create Ticket
-                </AppButton>
+                </Button>
               </Link>
             )}
           </div>
         }
       />
 
-      {/* 2. Metric Cards Section */}
       {summaryError ? (
         <Alert
           type="error"
@@ -321,74 +310,160 @@ export const DashboardPage: React.FC = () => {
           description={summaryError}
           showIcon
           action={
-            <AppButton size="small" onClick={handleRetrySummary}>
+            <Button size="small" onClick={handleRetrySummary}>
               Retry
-            </AppButton>
+            </Button>
           }
-          className="mb-8"
+          className="mb-5 rounded-xl border border-red-100"
         />
       ) : (
-        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <section
+          className={`mb-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 ${
+            isAdmin ? "xl:grid-cols-6" : "xl:grid-cols-5"
+          }`}
+        >
           {metricCards.map((item) => (
-            <AppCard
+            <Card
               key={item.label}
               elevated
-              className={`transition-all ${item.cardExtraClass || ""}`}
+              className={`bg-white border-gray-200/80 shadow-xs hover:shadow-md transition-all ${item.accentBorder} flex flex-col justify-between`}
+              styles={{
+                body: {
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  justifyContent: "space-between",
+                },
+              }}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider leading-tight">
                   {item.label}
                 </span>
                 <div
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${item.iconBoxClass}`}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${item.iconBoxClass}`}
                 >
                   {item.icon}
                 </div>
               </div>
 
               {summaryLoading ? (
-                <div className="mt-3 flex flex-col gap-1.5 animate-pulse">
-                  <div className="h-8 w-16 bg-gray-200/80 rounded-md" />
-                  <div className="h-3 w-28 bg-gray-100 rounded" />
+                <div className="mt-2.5 flex flex-col gap-1.5 animate-pulse">
+                  <div className="h-7 w-16 bg-gray-200/80 rounded-md" />
+                  <div className="h-3 w-24 bg-gray-100 rounded" />
                 </div>
               ) : (
-                <div className="mt-2.5">
-                  <p
-                    className={`text-3xl font-bold tracking-tight m-0 tabular-nums ${item.valueColor}`}
-                  >
-                    {typeof item.count === "number" ? item.count : 0}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400 m-0 font-normal">
+                <div className="mt-2 flex-1 flex flex-col justify-end">
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <p
+                      className={`text-2xl sm:text-3xl font-extrabold tracking-tight m-0 tabular-nums ${item.valueColor}`}
+                    >
+                      {typeof item.count === "number" ? item.count : 0}
+                    </p>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded tabular-nums shrink-0 ${item.sharePillClass}`}
+                    >
+                      {item.shareText}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400 m-0 font-normal leading-4 min-h-8">
                     {item.subtext}
                   </p>
                 </div>
               )}
-            </AppCard>
+            </Card>
           ))}
         </section>
       )}
 
-      {/* 3. Recent Tickets Section */}
-      <AppCard
-        title={
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-gray-900">
-              Recent Tickets
-            </span>
-            {!recentLoading && !recentError && recentTickets.length > 0 && (
-              <span className="text-xs font-normal text-gray-400">
-                ({recentTickets.length} latest)
+      <DeadlineOverviewCards summary={summary} loading={summaryLoading} />
+
+      <section className="mb-5 grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <Card
+          className="bg-white border-gray-200/80 shadow-xs flex flex-col min-w-0"
+          styles={{
+            body: {
+              padding: "16px 18px",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            },
+          }}
+        >
+          <TicketStatusDonut summary={summary} loading={summaryLoading} />
+        </Card>
+
+        <Card
+          className="bg-white border-gray-200/80 shadow-xs flex flex-col min-w-0"
+          styles={{
+            body: {
+              padding: "16px 18px",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            },
+          }}
+        >
+          <TicketPriorityChart summary={summary} loading={summaryLoading} />
+        </Card>
+
+        <Card
+          className="bg-white border-gray-200/80 shadow-xs flex flex-col min-w-0"
+          styles={{
+            body: {
+              padding: "16px 18px",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            },
+          }}
+        >
+          <QueueHealthCard summary={summary} loading={summaryLoading} />
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <UpcomingOverdueCard
+          tickets={summary?.urgentTickets ?? []}
+          loading={summaryLoading}
+          error={summaryError}
+          onRetry={handleRetrySummary}
+          isAdmin={isAdmin}
+        />
+
+        <Card
+          className="bg-white border-gray-200/80 shadow-xs flex flex-col h-full"
+          styles={{
+            body: {
+              padding: "8px 18px 16px",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            },
+          }}
+          title={
+            <div className="flex items-center gap-2 py-1">
+              <span className="text-base font-bold text-gray-900">
+                Recent Tickets
               </span>
-            )}
-          </div>
-        }
+              {!recentLoading && !recentError && recentTickets.length > 0 && (
+                <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200/60 tabular-nums">
+                  {recentTickets.length} latest
+                </span>
+              )}
+            </div>
+          }
         extra={
           <Link
             to={ROUTES.TICKETS}
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 group/link"
+            className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1 group/link"
           >
-            <span>View all</span>
-            <RightOutlined className="text-[11px] group-hover/link:translate-x-0.5 transition-transform" />
+            <span>View all tickets</span>
+            <RightOutlined className="text-[10px] group-hover/link:translate-x-0.5 transition-transform" />
           </Link>
         }
       >
@@ -420,9 +495,9 @@ export const DashboardPage: React.FC = () => {
             description={recentError}
             showIcon
             action={
-              <AppButton size="small" onClick={handleRetryRecent}>
+              <Button size="small" onClick={handleRetryRecent}>
                 Retry
-              </AppButton>
+              </Button>
             }
           />
         ) : recentTickets.length === 0 ? (
@@ -446,42 +521,47 @@ export const DashboardPage: React.FC = () => {
           >
             {isAdmin && (
               <Link to={ROUTES.TICKETS} state={{ openCreateModal: true }}>
-                <AppButton
+                <Button
                   type="primary"
                   size="middle"
                   icon={<PlusOutlined />}
-                  className="mt-2"
+                  className="mt-2 bg-purple-600 hover:bg-purple-700 border-purple-600"
                 >
                   Create Ticket
-                </AppButton>
+                </Button>
               </Link>
             )}
           </Empty>
         ) : (
           <div className="divide-y divide-gray-100">
             {recentTickets.map((ticket) => {
-              const assigneeName =
+              const assignee =
                 ticket.assignedToId && typeof ticket.assignedToId === "object"
-                  ? ticket.assignedToId.name
+                  ? ticket.assignedToId
                   : null;
+
+              const initial = assignee?.name
+                ? assignee.name.charAt(0).toUpperCase()
+                : "?";
 
               return (
                 <div
                   key={ticket._id}
                   onClick={() => handleViewTicket(ticket)}
-                  className="group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3.5 px-3 -mx-3 rounded-lg hover:bg-indigo-50/40 cursor-pointer transition-all border border-transparent hover:border-indigo-100/60"
+                  className="group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-2.5 px-3 rounded-xl hover:bg-purple-50/40 cursor-pointer transition-all border border-transparent hover:border-purple-100/70"
                   title="Click to view ticket details"
                 >
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <span className="font-mono text-xs font-semibold text-gray-500 bg-gray-100/90 border border-gray-200/80 px-2 py-0.5 rounded shrink-0">
-                      #{ticket._id.slice(-6).toUpperCase()}
-                    </span>
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100/80 flex items-center justify-center text-purple-600 shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-all shadow-2xs">
+                      <FileTextOutlined className="text-sm" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm text-gray-900 group-hover:text-indigo-600 transition-colors m-0 truncate">
+                      <p className="font-semibold text-sm text-gray-900 group-hover:text-purple-700 transition-colors m-0 truncate">
                         {ticket.title}
                       </p>
                       <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 flex-wrap">
-                        <span>
+                        <span className="flex items-center gap-1 text-gray-400">
+                          <CalendarOutlined className="text-[11px]" />
                           {new Date(ticket.createdAt).toLocaleDateString(
                             undefined,
                             {
@@ -491,21 +571,19 @@ export const DashboardPage: React.FC = () => {
                             },
                           )}
                         </span>
-                        {assigneeName ? (
-                          <>
-                            <span className="text-gray-300">•</span>
-                            <span className="flex items-center gap-1 text-gray-500 truncate max-w-45">
-                              <UserOutlined className="text-[10px] text-gray-400" />
-                              <span className="truncate">{assigneeName}</span>
+                        <span className="text-gray-300">•</span>
+                        {assignee ? (
+                          <span className="inline-flex items-center gap-1.5 text-gray-600 truncate max-w-45">
+                            <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">
+                              {initial}
                             </span>
-                          </>
+                            <span className="truncate">{assignee.name}</span>
+                          </span>
                         ) : (
-                          <>
-                            <span className="text-gray-300">•</span>
-                            <span className="italic text-gray-400">
-                              Unassigned
-                            </span>
-                          </>
+                          <span className="inline-flex items-center gap-1 italic text-gray-400 bg-gray-50 border border-gray-200/60 px-1.5 py-0.5 rounded text-[11px]">
+                            <UserOutlined className="text-[10px]" />
+                            Unassigned
+                          </span>
                         )}
                       </div>
                     </div>
@@ -514,15 +592,16 @@ export const DashboardPage: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     {getPriorityTag(ticket.priority)}
                     {getStatusTag(ticket.status)}
-                    <RightOutlined className="text-xs text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all ml-1 hidden sm:inline-block" />
+                    <RightOutlined className="text-xs text-gray-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all ml-1 hidden sm:inline-block" />
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </AppCard>
-    </div>
+      </Card>
+    </section>
+  </div>
   );
 };
 

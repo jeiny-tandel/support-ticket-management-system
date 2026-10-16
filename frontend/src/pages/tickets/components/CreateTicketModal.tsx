@@ -1,53 +1,97 @@
 import React, { useState } from 'react';
-import { Modal, Form, Input, Select, Alert, message } from 'antd';
+import { Form, Input, Select, DatePicker, Alert, message } from 'antd';
+import dayjs from 'dayjs';
 import { useFormik } from 'formik';
+import { useAppDispatch } from '../../../hooks';
+import { createTicket, updateTicket, fetchTicketSummary } from '../../../store';
 import { createTicketSchema, type CreateTicketFormData } from '../../../schemas';
-import { createTicketApi } from '../../../api';
-import { TICKET_PRIORITIES, type TicketPriority } from '../../../types';
-import { AppButton } from '../../../components/common';
+import { TICKET_PRIORITIES, type Ticket, type TicketPriority } from '../../../types';
+import { Button, Modal } from '../../../components/common';
 
 const { TextArea } = Input;
 
-interface CreateTicketModalProps {
+export interface CreateTicketModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  ticket?: Ticket | null;
 }
 
 export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
   open,
   onClose,
   onSuccess,
+  ticket,
 }) => {
+  const dispatch = useAppDispatch();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const isEdit = Boolean(ticket);
 
   const formik = useFormik<CreateTicketFormData>({
+    enableReinitialize: true,
     initialValues: {
-      title: '',
-      description: '',
-      priority: 'MEDIUM',
+      title: ticket?.title ?? '',
+      description: ticket?.description ?? '',
+      priority: ticket?.priority ?? 'MEDIUM',
+      dueDate: ticket?.dueDate ?? null,
     },
     validationSchema: createTicketSchema,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       setSubmitError(null);
-      try {
-        await createTicketApi({
-          title: values.title.trim(),
-          description: values.description.trim(),
-          priority: values.priority,
-        });
-        message.success('Ticket created successfully');
+      let resultAction;
+      const trimmedTitle = values.title.trim();
+      const trimmedDescription = values.description.trim();
+      const payloadDueDate = values.dueDate
+        ? new Date(values.dueDate).toISOString()
+        : null;
+
+      if (isEdit && ticket) {
+        resultAction = await dispatch(
+          updateTicket({
+            ticketId: ticket._id,
+            payload: {
+              title: trimmedTitle,
+              description: trimmedDescription,
+              priority: values.priority,
+              dueDate: payloadDueDate,
+            },
+          }),
+        );
+      } else {
+        resultAction = await dispatch(
+          createTicket({
+            title: trimmedTitle,
+            description: trimmedDescription,
+            priority: values.priority,
+            dueDate: payloadDueDate,
+          }),
+        );
+      }
+
+      setSubmitting(false);
+
+      if (
+        (isEdit && updateTicket.fulfilled.match(resultAction)) ||
+        (!isEdit && createTicket.fulfilled.match(resultAction))
+      ) {
+        message.success(
+          isEdit
+            ? 'Ticket updated successfully'
+            : 'Ticket created successfully',
+        );
+        dispatch(fetchTicketSummary());
         resetForm();
         onClose();
         onSuccess();
-      } catch (err: unknown) {
+      } else {
+        const defaultMsg = isEdit
+          ? 'Failed to update ticket. Please try again.'
+          : 'Failed to create ticket. Please try again.';
         const errorMsg =
-          err && typeof err === 'object' && 'message' in err
-            ? String((err as { message: unknown }).message)
-            : 'Failed to create ticket. Please try again.';
+          typeof resultAction?.payload === 'string'
+            ? resultAction.payload
+            : defaultMsg;
         setSubmitError(errorMsg);
-      } finally {
-        setSubmitting(false);
       }
     },
   });
@@ -60,13 +104,10 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
 
   return (
     <Modal
-      title={<span className="text-lg font-bold text-gray-900">Create New Ticket</span>}
+      title={isEdit ? 'Edit Ticket' : 'Create New Ticket'}
       open={open}
       onCancel={handleCancel}
-      footer={null}
-      destroyOnClose
-      centered
-      className="max-w-lg"
+      maxWidth="lg"
     >
       {submitError && (
         <Alert
@@ -80,7 +121,6 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
       )}
 
       <form onSubmit={formik.handleSubmit} className="space-y-4 pt-2">
-        {/* Title */}
         <Form.Item
           label={<span className="font-medium text-gray-700">Ticket Title</span>}
           layout="vertical"
@@ -103,7 +143,6 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
           />
         </Form.Item>
 
-        {/* Priority */}
         <Form.Item
           label={<span className="font-medium text-gray-700">Priority Level</span>}
           layout="vertical"
@@ -126,7 +165,44 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
           />
         </Form.Item>
 
-        {/* Description */}
+        <Form.Item
+          label={
+            <div className="flex items-center justify-between w-full">
+              <span className="font-medium text-gray-700">Due Date (Optional)</span>
+              <span className="text-xs text-gray-400 font-normal">
+                Target resolution deadline
+              </span>
+            </div>
+          }
+          layout="vertical"
+          validateStatus={
+            formik.touched.dueDate && formik.errors.dueDate ? 'error' : ''
+          }
+          help={formik.touched.dueDate ? formik.errors.dueDate : undefined}
+          className="mb-3"
+        >
+          <DatePicker
+            id="dueDate"
+            value={formik.values.dueDate ? dayjs(formik.values.dueDate) : null}
+            onChange={(date) => {
+              formik.setFieldValue(
+                'dueDate',
+                date ? date.endOf('day').toISOString() : null,
+              );
+            }}
+            onBlur={() => formik.setFieldTouched('dueDate', true)}
+            disabled={formik.isSubmitting}
+            disabledDate={(current) =>
+              !isEdit &&
+              Boolean(current && current.endOf('day').isBefore(dayjs().startOf('day')))
+            }
+            placeholder="Select target resolution deadline"
+            className="h-10 w-full rounded-lg"
+            format="YYYY-MM-DD"
+            allowClear
+          />
+        </Form.Item>
+
         <Form.Item
           label={<span className="font-medium text-gray-700">Detailed Description</span>}
           layout="vertical"
@@ -150,23 +226,22 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
           />
         </Form.Item>
 
-        {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
-          <AppButton
+          <Button
             type="default"
             onClick={handleCancel}
             disabled={formik.isSubmitting}
           >
             Cancel
-          </AppButton>
-          <AppButton
+          </Button>
+          <Button
             type="primary"
             htmlType="submit"
             loading={formik.isSubmitting}
             disabled={formik.isSubmitting}
           >
-            Create Ticket
-          </AppButton>
+            {isEdit ? 'Save Changes' : 'Create Ticket'}
+          </Button>
         </div>
       </form>
     </Modal>

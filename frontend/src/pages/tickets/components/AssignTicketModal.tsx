@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Select, Alert, Spin, message } from 'antd';
+import { Select, Alert, Spin, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
-import { getUsersApi, assignTicketApi, type BackendUserResponse } from '../../../api';
+import { useAppDispatch } from '../../../hooks';
+import { assignTicket, fetchTicketSummary } from '../../../store';
+import { getUsersApi, type BackendUserResponse } from '../../../api';
+import { USER_ROLES } from '../../../constants/roles';
 import type { Ticket } from '../../../types';
-import { AppButton } from '../../../components/common';
+import { Button, Modal } from '../../../components/common';
 
 interface AssignTicketModalProps {
   ticket: Ticket | null;
@@ -18,6 +21,7 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const dispatch = useAppDispatch();
   const currentAssigneeId = ticket?.assignedToId
     ? typeof ticket.assignedToId === 'object'
       ? ticket.assignedToId._id
@@ -36,11 +40,9 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
 
     let isMounted = true;
 
-    getUsersApi()
-      .then((users) => {
+    getUsersApi({ role: USER_ROLES.SUPPORT_AGENT })
+      .then((supportAgents) => {
         if (isMounted) {
-          // Strictly filter to SUPPORT_AGENT accounts
-          const supportAgents = users.filter((u) => u.role === 'SUPPORT_AGENT');
           setAgents(supportAgents);
           setIsLoadingAgents(false);
         }
@@ -73,42 +75,40 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
     setIsSubmitting(true);
     setSubmitError(null);
 
-    try {
-      const updatedTicket = await assignTicketApi(ticket._id, {
-        assignedToId: selectedAgentId,
-      });
+    const resultAction = await dispatch(
+      assignTicket({
+        ticketId: ticket._id,
+        payload: { assignedToId: selectedAgentId },
+      }),
+    );
+
+    setIsSubmitting(false);
+
+    if (assignTicket.fulfilled.match(resultAction)) {
       message.success('Ticket assigned successfully');
+      dispatch(fetchTicketSummary());
       handleCancel();
-      onSuccess(updatedTicket);
-    } catch (err: unknown) {
+      onSuccess(resultAction.payload);
+    } else {
       const msg =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: unknown }).message)
-          : 'Failed to assign ticket. Please try again.';
+        resultAction.payload ?? 'Failed to assign ticket. Please try again.';
       setSubmitError(msg);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
     <Modal
-      title={
-        <div className="flex flex-col">
-          <span className="text-lg font-bold text-gray-900">Assign Ticket</span>
-          {ticket && (
-            <span className="text-xs text-gray-500 font-normal mt-0.5">
-              Ticket: <strong className="text-gray-700">{ticket.title}</strong>
-            </span>
-          )}
-        </div>
+      title="Assign Ticket"
+      subtitle={
+        ticket ? (
+          <span>
+            Ticket: <strong className="text-gray-700">{ticket.title}</strong>
+          </span>
+        ) : undefined
       }
       open={open}
       onCancel={handleCancel}
-      footer={null}
-      destroyOnClose
-      centered
-      className="max-w-md"
+      maxWidth="md"
     >
       {fetchError && (
         <Alert
@@ -179,14 +179,14 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
-            <AppButton
+            <Button
               type="default"
               onClick={handleCancel}
               disabled={isSubmitting}
             >
               Cancel
-            </AppButton>
-            <AppButton
+            </Button>
+            <Button
               type="primary"
               onClick={handleSubmit}
               loading={isSubmitting}
@@ -194,7 +194,7 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
               icon={<UserOutlined />}
             >
               Confirm Assignment
-            </AppButton>
+            </Button>
           </div>
         </div>
       )}

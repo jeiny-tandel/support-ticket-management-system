@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button as AntButton, type ButtonProps as AntButtonProps } from 'antd';
 
-export interface AppButtonProps extends AntButtonProps {
+export interface ButtonProps extends AntButtonProps {
   /** Convenience flag to render button at 100% container width */
   fullWidth?: boolean;
 }
@@ -10,7 +10,7 @@ export interface AppButtonProps extends AntButtonProps {
  * Reusable SolviX button extending Ant Design Button.
  * Preserves all native Ant Design behavior, HTML button attributes, and loading states.
  */
-export const AppButton: React.FC<AppButtonProps> = ({
+export const Button: React.FC<ButtonProps> = ({
   fullWidth = false,
   className = '',
   type = 'default',
@@ -34,4 +34,4 @@ export const AppButton: React.FC<AppButtonProps> = ({
   );
 };
 
-export default AppButton;
+export default Button;

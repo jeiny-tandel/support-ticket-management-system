@@ -48,5 +48,4 @@ export class Comment {
 
 export const CommentSchema = SchemaFactory.createForClass(Comment);
 
-// Compound index supporting chronological comment retrieval per ticket
 CommentSchema.index({ ticketId: 1, createdAt: 1 });

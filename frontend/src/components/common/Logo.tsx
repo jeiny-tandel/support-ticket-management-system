@@ -1,7 +1,7 @@
 import React from 'react';
 import { CustomerServiceOutlined } from '@ant-design/icons';
 
-export interface AppLogoProps {
+export interface LogoProps {
   /** Size variant for logo and text */
   size?: 'small' | 'middle' | 'large';
   /** Whether to show the "SolviX" brand name text */
@@ -14,7 +14,7 @@ export interface AppLogoProps {
   onClick?: () => void;
 }
 
-export const AppLogo: React.FC<AppLogoProps> = ({
+export const Logo: React.FC<LogoProps> = ({
   size = 'middle',
   showText = true,
   subtitle,
@@ -73,4 +73,4 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   );
 };
 
-export default AppLogo;
+export default Logo;

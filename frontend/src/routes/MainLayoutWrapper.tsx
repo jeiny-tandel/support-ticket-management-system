@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { AppLayout, type SidebarItem } from "../components/layout";
+import { Layout, type SidebarItem } from "../components/layout";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { logout, selectCurrentUser, selectUserRole } from "../store";
 import { getAccessibleMenuItems } from "../constants/menus";
@@ -43,8 +43,12 @@ export const MainLayoutWrapper: React.FC = () => {
     navigate(ROUTES.LOGIN, { replace: true });
   };
 
+  const handleProfileClick = () => {
+    navigate(ROUTES.PROFILE);
+  };
+
   return (
-    <AppLayout
+    <Layout
       sidebarItems={accessibleMenuItems}
       selectedMenuKey={activeKey}
       onSelectMenuKey={handleSelectMenuKey}
@@ -58,9 +62,10 @@ export const MainLayoutWrapper: React.FC = () => {
           : null
       }
       onLogout={handleLogout}
+      onProfileClick={handleProfileClick}
     >
       <Outlet />
-    </AppLayout>
+    </Layout>
   );
 };
 

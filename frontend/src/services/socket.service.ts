@@ -41,7 +41,6 @@ class SocketService {
       return this.socket;
     }
 
-    // Create a new socket instance
     this.socket = io(API_BASE_URL, {
       auth: {
         token: `Bearer ${token}`,
@@ -72,7 +71,6 @@ class SocketService {
     });
 
     this.socket.on('connect_error', (error) => {
-      // Do not log tokens or sensitive data
       console.warn('Socket connection error:', error.message);
     });
 

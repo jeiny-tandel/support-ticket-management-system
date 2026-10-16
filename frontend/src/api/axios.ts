@@ -145,9 +145,6 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    // 401 responses are normalized and rejected without causing redirect loops
-    // or uncoordinated global event dispatches. Redux and router will coordinate
-    // session state in subsequent phases.
     return Promise.reject(normalizeApiError(error));
   },
 );

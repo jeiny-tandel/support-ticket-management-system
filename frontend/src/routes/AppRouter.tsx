@@ -23,8 +23,16 @@ import { DashboardPage } from "../pages/dashboard";
 import {
   UnauthorizedPage,
   NotFoundPage,
+  ProfilePage,
 } from "../pages/shared";
-import { TicketsPage, TicketDetailsPage } from "../pages/tickets";
+import {
+  TicketsPage,
+  TicketDetailsPage,
+  DeletedTicketsPage,
+} from "../pages/tickets";
+import { AgentsPage } from "../pages/admin";
+import { PERMISSIONS } from "../constants/permissions";
+import { PermissionRoute } from "./PermissionRoute";
 
 export const AppRouter: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -54,31 +62,39 @@ export const AppRouter: React.FC = () => {
 
   return (
     <Routes>
-      {/* Public marketing pages wrapped in PublicLayout */}
       <Route element={<PublicLayout />}>
         <Route path={ROUTES.HOME} element={<HomePage />} />
         <Route path={ROUTES.ABOUT} element={<AboutPage />} />
       </Route>
 
-      {/* Public-only authentication routes: redirects authenticated users to /dashboard */}
       <Route element={<PublicOnlyRoute />}>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
         <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
       </Route>
 
-      {/* Protected routes wrapped with dashboard layout (AppLayout + Sidebar + Header) */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayoutWrapper />}>
           <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
           <Route path={ROUTES.TICKETS} element={<TicketsPage />} />
           <Route path={ROUTES.TICKET_DETAILS} element={<TicketDetailsPage />} />
+          <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
+
+          <Route
+            element={<PermissionRoute permission={PERMISSIONS.MANAGE_TICKETS} />}
+          >
+            <Route path={ROUTES.DELETED_TICKETS} element={<DeletedTicketsPage />} />
+          </Route>
+
+          <Route
+            element={<PermissionRoute permission={PERMISSIONS.MANAGE_USERS} />}
+          >
+            <Route path={ROUTES.USERS} element={<AgentsPage />} />
+          </Route>
         </Route>
       </Route>
 
-      {/* Error & utility routes */}
       <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
 
-      {/* Catch-all 404 route */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

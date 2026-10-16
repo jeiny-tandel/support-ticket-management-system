@@ -1,2 +1,2 @@
-// Placeholder for future admin role-specific pages
-export {};
+export * from './AgentsPage';
+export * from './components';

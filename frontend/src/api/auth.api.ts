@@ -48,3 +48,20 @@ export const getMeApi = async (): Promise<User> => {
   const response = await apiClient.get<User>('/auth/me');
   return response.data;
 };
+
+export interface UpdateProfilePayload {
+  name: string;
+}
+
+/**
+ * Updates the currently authenticated user's self profile name.
+ * Backend endpoint: PATCH /auth/me
+ * Payload: { name: string }
+ * Response: { id: string, name: string, email: string, role: string }
+ */
+export const updateProfileApi = async (
+  payload: UpdateProfilePayload,
+): Promise<User> => {
+  const response = await apiClient.patch<User>('/auth/me', payload);
+  return response.data;
+};

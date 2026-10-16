@@ -1,7 +1,7 @@
 import React from 'react';
 import { Input as AntInput, type InputProps as AntInputProps } from 'antd';
 
-export interface AppInputProps extends AntInputProps {
+export interface InputProps extends AntInputProps {
   /** Optional label displayed above the input */
   label?: React.ReactNode;
   /** Visual indicator for required fields */
@@ -20,7 +20,7 @@ export interface AppInputProps extends AntInputProps {
  * Reusable input component wrapping Ant Design Input and Input.Password.
  * Provides accessible labels, helper text, and error presentation.
  */
-export const AppInput: React.FC<AppInputProps> = ({
+export const Input: React.FC<InputProps> = ({
   label,
   required = false,
   error,
@@ -68,4 +68,4 @@ export const AppInput: React.FC<AppInputProps> = ({
   );
 };
 
-export default AppInput;
+export default Input;

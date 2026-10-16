@@ -18,7 +18,7 @@ import {
   selectAuthLoading,
   selectAuthError,
 } from "../../store";
-import { AppLogo, AppInput, AppButton } from "../../components/common";
+import { Logo, Input, Button } from "../../components/common";
 import { ROUTES } from "../../constants/routes";
 
 export const RegisterPage: React.FC = () => {
@@ -53,9 +53,7 @@ export const RegisterPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-100 via-indigo-50/40 to-slate-200 flex flex-col items-center justify-center p-3 sm:p-5">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden flex flex-col md:flex-row">
-        {/* Left Side: Branded Welcome Panel (Compact) */}
         <div className="md:w-5/12 bg-linear-to-br from-indigo-700 via-indigo-800 to-slate-900 text-white p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden">
-          {/* Decorative glow elements */}
           <div
             className="absolute -top-20 -left-20 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"
             aria-hidden="true"
@@ -66,7 +64,7 @@ export const RegisterPage: React.FC = () => {
           />
 
           <div className="relative z-10">
-            <AppLogo size="small" />
+            <Logo size="small" />
             <div className="mt-5">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/30 text-indigo-200 border border-indigo-400/20 mb-2.5">
                 <CustomerServiceOutlined /> Join Support Team
@@ -96,7 +94,6 @@ export const RegisterPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Side: Form Panel (Compact) */}
         <div className="md:w-7/12 p-6 sm:p-7 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -127,7 +124,7 @@ export const RegisterPage: React.FC = () => {
           )}
 
           <form onSubmit={formik.handleSubmit} noValidate className="space-y-2.5">
-            <AppInput
+            <Input
               id="name"
               name="name"
               label="Full Name"
@@ -142,7 +139,7 @@ export const RegisterPage: React.FC = () => {
               disabled={authLoading || formik.isSubmitting}
             />
 
-            <AppInput
+            <Input
               id="email"
               name="email"
               type="email"
@@ -158,7 +155,7 @@ export const RegisterPage: React.FC = () => {
               disabled={authLoading || formik.isSubmitting}
             />
 
-            <AppInput
+            <Input
               id="password"
               name="password"
               isPassword
@@ -174,7 +171,7 @@ export const RegisterPage: React.FC = () => {
               disabled={authLoading || formik.isSubmitting}
             />
 
-            <AppInput
+            <Input
               id="confirmPassword"
               name="confirmPassword"
               isPassword
@@ -195,7 +192,7 @@ export const RegisterPage: React.FC = () => {
             />
 
             <div className="pt-1.5">
-              <AppButton
+              <Button
                 type="primary"
                 htmlType="submit"
                 fullWidth
@@ -203,7 +200,7 @@ export const RegisterPage: React.FC = () => {
                 disabled={authLoading || formik.isSubmitting}
               >
                 Register as Support Agent
-              </AppButton>
+              </Button>
             </div>
           </form>
 

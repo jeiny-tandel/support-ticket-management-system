@@ -5,10 +5,12 @@ import type {
   TicketSummaryResponse,
   GetTicketsParams,
   CreateTicketPayload,
+  UpdateTicketPayload,
   AssignTicketPayload,
   UpdateTicketStatusPayload,
   TicketComment,
   CreateCommentPayload,
+  DeleteTicketPayload,
 } from '../types';
 
 /**
@@ -34,6 +36,15 @@ export const getTicketsApi = async (
 };
 
 /**
+ * Fetches a single ticket by its unique identifier.
+ * Backend endpoint: GET /tickets/:id
+ */
+export const getTicketByIdApi = async (ticketId: string): Promise<Ticket> => {
+  const response = await apiClient.get<Ticket>(`/tickets/${ticketId}`);
+  return response.data;
+};
+
+/**
  * Creates a new ticket. (Admin only)
  * Backend endpoint: POST /tickets
  * Payload: { title, description, priority }
@@ -42,6 +53,19 @@ export const createTicketApi = async (
   payload: CreateTicketPayload,
 ): Promise<Ticket> => {
   const response = await apiClient.post<Ticket>('/tickets', payload);
+  return response.data;
+};
+
+/**
+ * Updates an existing ticket's details (title, description, priority). (Admin only)
+ * Backend endpoint: PATCH /tickets/:id
+ * Payload: { title?, description?, priority? }
+ */
+export const updateTicketApi = async (
+  ticketId: string,
+  payload: UpdateTicketPayload,
+): Promise<Ticket> => {
+  const response = await apiClient.patch<Ticket>(`/tickets/${ticketId}`, payload);
   return response.data;
 };
 
@@ -105,4 +129,34 @@ export const createTicketCommentApi = async (
   );
   return response.data;
 };
+
+/**
+ * Soft deletes an existing ticket with a mandatory deletion reason. (Admin only)
+ * Backend endpoint: DELETE /tickets/:id
+ * Payload: { reason }
+ */
+export const deleteTicketApi = async (
+  ticketId: string,
+  payload: DeleteTicketPayload,
+): Promise<Ticket> => {
+  const response = await apiClient.delete<Ticket>(`/tickets/${ticketId}`, {
+    data: payload,
+  });
+  return response.data;
+};
+
+/**
+ * Fetches soft-deleted tickets with optional filtering and pagination. (Admin only)
+ * Backend endpoint: GET /tickets/deleted
+ */
+export const getDeletedTicketsApi = async (
+  params?: GetTicketsParams,
+): Promise<PaginatedTicketsResponse> => {
+  const response = await apiClient.get<PaginatedTicketsResponse>(
+    '/tickets/deleted',
+    { params },
+  );
+  return response.data;
+};
+
 

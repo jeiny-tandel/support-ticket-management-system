@@ -12,8 +12,10 @@ import {
   AssignTicketDto,
   CreateCommentDto,
   CreateTicketDto,
+  DeleteTicketDto,
   GetTicketsQueryDto,
   UpdateTicketStatusDto,
+  UpdateTicketDto,
 } from './dto';
 import { TicketPriority, TicketStatus, UserRole } from '../common/enums';
 import { UsersService } from '../users/users.service';
@@ -34,12 +36,43 @@ export interface PaginatedTicketsResult {
   totalPages: number;
 }
 
+export interface TicketPrioritySummary {
+  low: number;
+  medium: number;
+  high: number;
+}
+
+export interface DeadlineMetrics {
+  overdue: number;
+  dueToday: number;
+  dueSoon: number;
+}
+
+export interface UrgentTicketItem {
+  _id: string;
+  title: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  dueDate: Date | string;
+  assignedToId?: {
+    _id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+  createdAt?: Date | string;
+}
+
 export interface TicketSummaryResult {
   total: number;
   open: number;
   inProgress: number;
   resolved: number;
   closed: number;
+  unassigned: number;
+  priorities: TicketPrioritySummary;
+  deadlines: DeadlineMetrics;
+  urgentTickets: UrgentTicketItem[];
 }
 
 @Injectable()
@@ -67,6 +100,22 @@ export class TicketsService {
       );
     }
 
+    let parsedDueDate: Date | null = null;
+    if (createTicketDto.dueDate) {
+      const dueDate = new Date(createTicketDto.dueDate);
+      if (isNaN(dueDate.getTime())) {
+        throw new BadRequestException('Due date must be a valid date');
+      }
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      if (dueDate.getTime() < startOfToday.getTime()) {
+        throw new BadRequestException(
+          'Due date for a new ticket cannot be in the past',
+        );
+      }
+      parsedDueDate = dueDate;
+    }
+
     const createdTicket = new this.ticketModel({
       title: createTicketDto.title.trim(),
       description: createTicketDto.description.trim(),
@@ -74,6 +123,7 @@ export class TicketsService {
       status: TicketStatus.OPEN,
       createdById: new Types.ObjectId(user.id),
       assignedToId: null,
+      dueDate: parsedDueDate,
     });
 
     const savedTicket = await createdTicket.save();
@@ -94,13 +144,10 @@ export class TicketsService {
       );
     }
 
-    const filter: {
-      assignedToId?: Types.ObjectId;
-      status?: TicketStatus;
-      priority?: TicketPriority;
-    } = {};
+    const filter: Record<string, any> = {
+      isDeleted: { $ne: true },
+    };
 
-    // Role-based visibility scoping
     if (user.role === UserRole.SUPPORT_AGENT) {
       filter.assignedToId = new Types.ObjectId(user.id);
     } else if (user.role === UserRole.ADMIN) {
@@ -109,13 +156,25 @@ export class TicketsService {
       throw new ForbiddenException('Access denied for user role');
     }
 
-    // Optional query filters
     if (query.status) {
       filter.status = query.status;
     }
 
     if (query.priority) {
       filter.priority = query.priority;
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions: Record<string, any>[] = [
+        { title: { $regex: escaped, $options: 'i' } },
+        { description: { $regex: escaped, $options: 'i' } },
+      ];
+      if (Types.ObjectId.isValid(search) && search.length === 24) {
+        orConditions.push({ _id: new Types.ObjectId(search) });
+      }
+      filter.$or = orConditions;
     }
 
     const page = Math.max(1, Number(query.page) || 1);
@@ -160,9 +219,11 @@ export class TicketsService {
 
     const matchFilter: {
       assignedToId?: Types.ObjectId;
-    } = {};
+      isDeleted: { $ne: boolean };
+    } = {
+      isDeleted: { $ne: true },
+    };
 
-    // Role-based visibility scoping
     if (user.role === UserRole.SUPPORT_AGENT) {
       matchFilter.assignedToId = new Types.ObjectId(user.id);
     } else if (user.role === UserRole.ADMIN) {
@@ -171,22 +232,113 @@ export class TicketsService {
       throw new ForbiddenException('Access denied for user role');
     }
 
-    interface StatusCountAggregation {
-      _id: TicketStatus;
-      count: number;
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const fortyEightHours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+    const activeDeadlineFilter = {
+      status: { $nin: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+      dueDate: { $ne: null },
+    };
+
+    interface FacetAggregationResult {
+      statusCounts: Array<{ _id: TicketStatus; count: number }>;
+      priorityCounts: Array<{ _id: TicketPriority; count: number }>;
+      unassignedCount: Array<{ count: number }>;
+      overdueCount: Array<{ count: number }>;
+      dueTodayCount: Array<{ count: number }>;
+      dueSoonCount: Array<{ count: number }>;
     }
 
-    const aggregationResults = await this.ticketModel
-      .aggregate<StatusCountAggregation>([
-        { $match: matchFilter },
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
+    const [[facetResult], urgentTickets] = await Promise.all([
+      this.ticketModel
+        .aggregate<FacetAggregationResult>([
+          { $match: matchFilter },
+          {
+            $facet: {
+              statusCounts: [
+                {
+                  $group: {
+                    _id: '$status',
+                    count: { $sum: 1 },
+                  },
+                },
+              ],
+              priorityCounts: [
+                {
+                  $group: {
+                    _id: '$priority',
+                    count: { $sum: 1 },
+                  },
+                },
+              ],
+              unassignedCount: [
+                {
+                  $match: {
+                    $or: [
+                      { assignedToId: null },
+                      { assignedToId: { $exists: false } },
+                    ],
+                  },
+                },
+                {
+                  $count: 'count',
+                },
+              ],
+              overdueCount: [
+                {
+                  $match: {
+                    ...activeDeadlineFilter,
+                    dueDate: { $ne: null, $lt: now },
+                  },
+                },
+                { $count: 'count' },
+              ],
+              dueTodayCount: [
+                {
+                  $match: {
+                    ...activeDeadlineFilter,
+                    dueDate: {
+                      $ne: null,
+                      $gte: startOfToday,
+                      $lte: endOfToday,
+                    },
+                  },
+                },
+                { $count: 'count' },
+              ],
+              dueSoonCount: [
+                {
+                  $match: {
+                    ...activeDeadlineFilter,
+                    dueDate: {
+                      $ne: null,
+                      $gt: endOfToday,
+                      $lte: fortyEightHours,
+                    },
+                  },
+                },
+                { $count: 'count' },
+              ],
+            },
           },
-        },
-      ])
-      .exec();
+        ])
+        .exec(),
+      this.ticketModel
+        .find({
+          ...matchFilter,
+          status: { $nin: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+          dueDate: { $ne: null },
+        })
+        .select('title status priority dueDate assignedToId createdAt')
+        .populate('assignedToId', 'name email role')
+        .sort({ dueDate: 1 })
+        .limit(5)
+        .exec(),
+    ]);
 
     const summary: TicketSummaryResult = {
       total: 0,
@@ -194,25 +346,105 @@ export class TicketsService {
       inProgress: 0,
       resolved: 0,
       closed: 0,
+      unassigned: 0,
+      priorities: {
+        low: 0,
+        medium: 0,
+        high: 0,
+      },
+      deadlines: {
+        overdue: 0,
+        dueToday: 0,
+        dueSoon: 0,
+      },
+      urgentTickets: urgentTickets.map((t) => {
+        const assignee = t.assignedToId as unknown as {
+          _id?: { toString(): string } | string;
+          name?: string;
+          email?: string;
+          role?: string;
+        } | null;
+
+        return {
+          _id: t._id.toString(),
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          dueDate: t.dueDate as Date,
+          assignedToId: assignee
+            ? {
+                _id: assignee._id ? assignee._id.toString() : '',
+                name: assignee.name || '',
+                email: assignee.email || '',
+                role: assignee.role || '',
+              }
+            : null,
+          createdAt: t.createdAt,
+        };
+      }),
     };
 
-    for (const item of aggregationResults) {
-      const count = Number(item.count) || 0;
-      summary.total += count;
+    if (facetResult) {
+      if (facetResult.statusCounts) {
+        for (const item of facetResult.statusCounts) {
+          const count = Number(item.count) || 0;
+          summary.total += count;
 
-      switch (item._id) {
-        case TicketStatus.OPEN:
-          summary.open = count;
-          break;
-        case TicketStatus.IN_PROGRESS:
-          summary.inProgress = count;
-          break;
-        case TicketStatus.RESOLVED:
-          summary.resolved = count;
-          break;
-        case TicketStatus.CLOSED:
-          summary.closed = count;
-          break;
+          switch (item._id) {
+            case TicketStatus.OPEN:
+              summary.open = count;
+              break;
+            case TicketStatus.IN_PROGRESS:
+              summary.inProgress = count;
+              break;
+            case TicketStatus.RESOLVED:
+              summary.resolved = count;
+              break;
+            case TicketStatus.CLOSED:
+              summary.closed = count;
+              break;
+          }
+        }
+      }
+
+      if (facetResult.priorityCounts) {
+        for (const item of facetResult.priorityCounts) {
+          const count = Number(item.count) || 0;
+
+          switch (item._id) {
+            case TicketPriority.LOW:
+              summary.priorities.low = count;
+              break;
+            case TicketPriority.MEDIUM:
+              summary.priorities.medium = count;
+              break;
+            case TicketPriority.HIGH:
+              summary.priorities.high = count;
+              break;
+          }
+        }
+      }
+
+      if (
+        facetResult.unassignedCount &&
+        facetResult.unassignedCount.length > 0
+      ) {
+        summary.unassigned = Number(facetResult.unassignedCount[0].count) || 0;
+      }
+
+      if (facetResult.overdueCount && facetResult.overdueCount.length > 0) {
+        summary.deadlines.overdue =
+          Number(facetResult.overdueCount[0].count) || 0;
+      }
+
+      if (facetResult.dueTodayCount && facetResult.dueTodayCount.length > 0) {
+        summary.deadlines.dueToday =
+          Number(facetResult.dueTodayCount[0].count) || 0;
+      }
+
+      if (facetResult.dueSoonCount && facetResult.dueSoonCount.length > 0) {
+        summary.deadlines.dueSoon =
+          Number(facetResult.dueSoonCount[0].count) || 0;
       }
     }
 
@@ -223,42 +455,37 @@ export class TicketsService {
     id: string,
     assignTicketDto: AssignTicketDto,
   ): Promise<TicketDocument> {
-    // 1. Validate the ticket ID
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException(`Invalid ticket ID: "${id}"`);
     }
 
-    // 2. Find the ticket and return 404 Not Found if it does not exist
-    const ticket = await this.ticketModel.findById(id).exec();
+    const ticket = await this.ticketModel
+      .findOne({ _id: id, isDeleted: { $ne: true } })
+      .exec();
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID "${id}" not found`);
     }
 
-    // Capture the previous assignee ID before updating
     const previousAssigneeId = ticket.assignedToId
       ? ticket.assignedToId.toString()
       : null;
 
-    // 3. Validate the assignee ID
     const { assignedToId } = assignTicketDto;
     if (!Types.ObjectId.isValid(assignedToId)) {
       throw new BadRequestException(`Invalid assignee ID: "${assignedToId}"`);
     }
 
-    // 4 & 5. Find the user using existing Users service; 404 if user does not exist
     const assignee = await this.usersService.findById(assignedToId);
     if (!assignee) {
       throw new NotFoundException(`User with ID "${assignedToId}" not found`);
     }
 
-    // 6. Verify that the user has the SUPPORT_AGENT role; reject Admins and any other roles
     if (assignee.role !== UserRole.SUPPORT_AGENT) {
       throw new BadRequestException(
         `Cannot assign ticket to user with role "${assignee.role}". Tickets can only be assigned to users with the SUPPORT_AGENT role.`,
       );
     }
 
-    // 7. Update only the ticket's assignedToId using findByIdAndUpdate
     const updatedTicket = await this.ticketModel
       .findByIdAndUpdate(
         id,
@@ -281,7 +508,6 @@ export class TicketsService {
       );
     }
 
-    // 8. Return the updated ticket
     return updatedTicket;
   }
 
@@ -290,7 +516,6 @@ export class TicketsService {
     updateStatusDto: UpdateTicketStatusDto,
     user: AuthenticatedUserContext,
   ): Promise<TicketDocument> {
-    // 1. Validate user authentication context
     if (!user || !user.id) {
       throw new UnauthorizedException('User authentication context is missing');
     }
@@ -301,27 +526,24 @@ export class TicketsService {
       );
     }
 
-    // 2. Validate ticket ID format
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException(`Invalid ticket ID: "${id}"`);
     }
 
-    // 3. Ensure ticket exists
-    const ticket = await this.ticketModel.findById(id).exec();
+    const ticket = await this.ticketModel
+      .findOne({ _id: id, isDeleted: { $ne: true } })
+      .exec();
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID "${id}" not found`);
     }
 
-    // 4. Role-specific validation and atomic update
     if (user.role === UserRole.SUPPORT_AGENT) {
-      // Support Agents can update only tickets assigned to them
       if (!ticket.assignedToId || ticket.assignedToId.toString() !== user.id) {
         throw new ForbiddenException(
           'You can only update status for tickets assigned to you',
         );
       }
 
-      // Support Agents cannot update or reopen a closed ticket
       if (ticket.status === TicketStatus.CLOSED) {
         throw new BadRequestException(
           'Closed tickets cannot be updated by support agents',
@@ -335,6 +557,7 @@ export class TicketsService {
             _id: id,
             assignedToId: new Types.ObjectId(user.id),
             status: { $ne: TicketStatus.CLOSED },
+            isDeleted: { $ne: true },
           },
           { status: updateStatusDto.status },
           { new: true, runValidators: true },
@@ -353,10 +576,9 @@ export class TicketsService {
     }
 
     if (user.role === UserRole.ADMIN) {
-      // Admins can update any ticket to any valid status, including reopening closed tickets
       const updatedTicket = await this.ticketModel
-        .findByIdAndUpdate(
-          id,
+        .findOneAndUpdate(
+          { _id: id, isDeleted: { $ne: true } },
           { status: updateStatusDto.status },
           { new: true, runValidators: true },
         )
@@ -372,6 +594,127 @@ export class TicketsService {
     }
 
     throw new ForbiddenException('Access denied for user role');
+  }
+
+  async updateTicket(
+    id: string,
+    updateTicketDto: UpdateTicketDto,
+    user: AuthenticatedUserContext,
+  ): Promise<TicketDocument> {
+    if (!user || !user.id) {
+      throw new UnauthorizedException('User authentication context is missing');
+    }
+
+    if (!Types.ObjectId.isValid(user.id)) {
+      throw new BadRequestException(
+        'Invalid user ID in authentication context',
+      );
+    }
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ticket ID: "${id}"`);
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only administrators have permission to edit ticket details',
+      );
+    }
+
+    if (
+      !updateTicketDto ||
+      (updateTicketDto.title === undefined &&
+        updateTicketDto.description === undefined &&
+        updateTicketDto.priority === undefined &&
+        updateTicketDto.dueDate === undefined)
+    ) {
+      throw new BadRequestException(
+        'At least one field (title, description, priority, or dueDate) must be provided for update',
+      );
+    }
+
+    const existingTicket = await this.ticketModel
+      .findOne({ _id: id, isDeleted: { $ne: true } })
+      .exec();
+    if (!existingTicket) {
+      throw new NotFoundException(`Ticket with ID "${id}" not found`);
+    }
+
+    const updateFields: {
+      title?: string;
+      description?: string;
+      priority?: TicketPriority;
+      dueDate?: Date | null;
+    } = {};
+
+    if (updateTicketDto.title !== undefined) {
+      const trimmed = updateTicketDto.title.trim();
+      if (!trimmed) {
+        throw new BadRequestException('Title cannot be empty');
+      }
+      updateFields.title = trimmed;
+    }
+
+    if (updateTicketDto.description !== undefined) {
+      const trimmed = updateTicketDto.description.trim();
+      if (!trimmed) {
+        throw new BadRequestException('Description cannot be empty');
+      }
+      updateFields.description = trimmed;
+    }
+
+    if (updateTicketDto.priority !== undefined) {
+      updateFields.priority = updateTicketDto.priority;
+    }
+
+    if (updateTicketDto.dueDate !== undefined) {
+      if (updateTicketDto.dueDate === null) {
+        updateFields.dueDate = null;
+      } else {
+        const newDueDate = new Date(updateTicketDto.dueDate);
+        if (isNaN(newDueDate.getTime())) {
+          throw new BadRequestException('Due date must be a valid date');
+        }
+
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const isExistingDate =
+          existingTicket.dueDate &&
+          new Date(existingTicket.dueDate).getTime() === newDueDate.getTime();
+        const isActiveTicket =
+          existingTicket.status === TicketStatus.OPEN ||
+          existingTicket.status === TicketStatus.IN_PROGRESS;
+
+        if (
+          !isExistingDate &&
+          isActiveTicket &&
+          newDueDate.getTime() < startOfToday.getTime()
+        ) {
+          throw new BadRequestException(
+            'Newly assigned due date cannot be in the past',
+          );
+        }
+
+        updateFields.dueDate = newDueDate;
+      }
+    }
+
+    const updatedTicket = await this.ticketModel
+      .findOneAndUpdate(
+        { _id: id, isDeleted: { $ne: true } },
+        { $set: updateFields },
+        { new: true, runValidators: true },
+      )
+      .populate('createdById', 'name email role')
+      .populate('assignedToId', 'name email role')
+      .exec();
+
+    if (!updatedTicket) {
+      throw new NotFoundException(`Ticket with ID "${id}" not found`);
+    }
+
+    return updatedTicket;
   }
 
   async createComment(
@@ -393,12 +736,13 @@ export class TicketsService {
       throw new BadRequestException(`Invalid ticket ID: "${ticketId}"`);
     }
 
-    const ticket = await this.ticketModel.findById(ticketId).exec();
+    const ticket = await this.ticketModel
+      .findOne({ _id: ticketId, isDeleted: { $ne: true } })
+      .exec();
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID "${ticketId}" not found`);
     }
 
-    // Role-based authorization for commenting on tickets
     if (user.role === UserRole.SUPPORT_AGENT) {
       if (!ticket.assignedToId || ticket.assignedToId.toString() !== user.id) {
         throw new ForbiddenException(
@@ -420,7 +764,6 @@ export class TicketsService {
     const savedComment = await newComment.save();
     await savedComment.populate('authorId', 'name email role');
 
-    // Safe author summary for real-time broadcast
     const populatedAuthor = savedComment.authorId as unknown as {
       _id?: Types.ObjectId;
       name?: string;
@@ -435,7 +778,6 @@ export class TicketsService {
       role: populatedAuthor?.role || user.role,
     };
 
-    // Real-time Socket.IO broadcast to the authorized ticket room AFTER database persistence
     await this.ticketsGateway.emitCommentCreated(ticketId, {
       _id: savedComment._id.toString(),
       ticketId,
@@ -471,7 +813,11 @@ export class TicketsService {
       throw new NotFoundException(`Ticket with ID "${ticketId}" not found`);
     }
 
-    // Enforce the same role-based ticket access restrictions
+    // Non-admins cannot access comments for soft-deleted tickets
+    if (ticket.isDeleted && user.role !== UserRole.ADMIN) {
+      throw new NotFoundException(`Ticket with ID "${ticketId}" not found`);
+    }
+
     if (user.role === UserRole.SUPPORT_AGENT) {
       if (!ticket.assignedToId || ticket.assignedToId.toString() !== user.id) {
         throw new ForbiddenException(
@@ -489,6 +835,181 @@ export class TicketsService {
       .sort({ createdAt: 1 })
       .populate('authorId', 'name email role')
       .exec();
+  }
+
+  async getTicketById(
+    id: string,
+    user: AuthenticatedUserContext,
+  ): Promise<TicketDocument> {
+    if (!user || !user.id) {
+      throw new UnauthorizedException('User authentication context is missing');
+    }
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ticket ID: "${id}"`);
+    }
+
+    const ticket = await this.ticketModel
+      .findOne({ _id: id, isDeleted: { $ne: true } })
+      .populate('createdById', 'name email role')
+      .populate('assignedToId', 'name email role')
+      .exec();
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID "${id}" not found`);
+    }
+
+    if (user.role === UserRole.SUPPORT_AGENT) {
+      const assigneeObj = ticket.assignedToId as unknown as {
+        _id?: Types.ObjectId;
+      } | null;
+      const assigneeId =
+        assigneeObj?._id?.toString() || ticket.assignedToId?.toString();
+      if (assigneeId !== user.id) {
+        throw new ForbiddenException('Access denied for this ticket');
+      }
+    }
+
+    return ticket;
+  }
+
+  async deleteTicket(
+    id: string,
+    deleteTicketDto: DeleteTicketDto,
+    user: AuthenticatedUserContext,
+  ): Promise<TicketDocument> {
+    if (!user || !user.id) {
+      throw new UnauthorizedException('User authentication context is missing');
+    }
+
+    if (!Types.ObjectId.isValid(user.id)) {
+      throw new BadRequestException(
+        'Invalid user ID in authentication context',
+      );
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only administrators have permission to delete tickets',
+      );
+    }
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ticket ID: "${id}"`);
+    }
+
+    const trimmedReason = deleteTicketDto?.reason?.trim();
+    if (!trimmedReason) {
+      throw new BadRequestException('Deletion reason is required');
+    }
+
+    const ticket = await this.ticketModel.findById(id).exec();
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID "${id}" not found`);
+    }
+
+    if (ticket.isDeleted) {
+      throw new BadRequestException('Ticket is already deleted');
+    }
+
+    const deletedTicket = await this.ticketModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            isDeleted: true,
+            deletionReason: trimmedReason,
+            deletedById: new Types.ObjectId(user.id),
+            deletedAt: new Date(),
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .populate('createdById', 'name email role')
+      .populate('assignedToId', 'name email role')
+      .populate('deletedById', 'name email role')
+      .exec();
+
+    if (!deletedTicket) {
+      throw new NotFoundException(`Ticket with ID "${id}" not found`);
+    }
+
+    await this.ticketsGateway.handleTicketDeleted(id);
+
+    return deletedTicket;
+  }
+
+  async getDeletedTickets(
+    query: GetTicketsQueryDto,
+    user: AuthenticatedUserContext,
+  ): Promise<PaginatedTicketsResult> {
+    if (!user || !user.id) {
+      throw new UnauthorizedException('User authentication context is missing');
+    }
+
+    if (!Types.ObjectId.isValid(user.id)) {
+      throw new BadRequestException(
+        'Invalid user ID in authentication context',
+      );
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only administrators can view deleted tickets',
+      );
+    }
+
+    const filter: Record<string, any> = {
+      isDeleted: true,
+    };
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    if (query.priority) {
+      filter.priority = query.priority;
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions: Record<string, any>[] = [
+        { title: { $regex: escaped, $options: 'i' } },
+        { description: { $regex: escaped, $options: 'i' } },
+      ];
+      if (Types.ObjectId.isValid(search) && search.length === 24) {
+        orConditions.push({ _id: new Types.ObjectId(search) });
+      }
+      filter.$or = orConditions;
+    }
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.ticketModel
+        .find(filter)
+        .populate('createdById', 'name email role')
+        .populate('assignedToId', 'name email role')
+        .populate('deletedById', 'name email role')
+        .sort({ deletedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.ticketModel.countDocuments(filter).exec(),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   getTicketModel(): Model<TicketDocument> {

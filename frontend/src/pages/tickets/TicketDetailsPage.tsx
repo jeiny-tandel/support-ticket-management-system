@@ -5,88 +5,87 @@ import {
   ArrowLeftOutlined,
   UserOutlined,
   SyncOutlined,
-  CopyOutlined,
+  LinkOutlined,
   ClockCircleOutlined,
-  CalendarOutlined,
   CheckOutlined,
+  EditOutlined,
+  FileTextOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
-import { useAppSelector } from "../../hooks";
-import { selectUserRole, selectCurrentUser } from "../../store";
-import { getTicketsApi } from "../../api";
+import { useAppDispatch, useAppSelector } from "../../hooks";
+import {
+  selectUserRole,
+  selectCurrentUser,
+  selectCurrentTicket,
+  selectCurrentTicketLoading,
+  selectCurrentTicketError,
+  fetchTicketById,
+  setCurrentTicket,
+  clearCurrentTicket,
+  selectComments,
+} from "../../store";
 import type {
   Ticket,
   TicketPriority,
   TicketStatus,
   TicketUserSummary,
 } from "../../types";
-import { AppButton } from "../../components/common";
+import { Button } from "../../components/common";
 import {
   AssignTicketModal,
   UpdateStatusModal,
+  CreateTicketModal,
   TicketComments,
+  TicketLifecycleProgress,
+  TicketMetadataSummary,
+  TicketActivityTimeline,
 } from "./components";
+import {
+  renderDueDateBadge,
+  isTicketOverdue,
+  formatDueDate,
+  getTicketAge,
+} from "../../utils";
 
 export const TicketDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
 
   const currentUser = useAppSelector(selectCurrentUser);
   const userRole = useAppSelector(selectUserRole);
   const isAdmin = userRole === "ADMIN";
 
-  // Ticket state (seed from navigation state if available)
-  const initialTicket = (location.state as { ticket?: Ticket } | null)?.ticket;
-  const [ticket, setTicket] = useState<Ticket | null>(
-    initialTicket && initialTicket._id === id ? initialTicket : null,
-  );
-  const [loading, setLoading] = useState<boolean>(!ticket && Boolean(id));
-  const [errorMessage, setErrorMessage] = useState<string | null>(
-    !id ? "Invalid ticket ID" : null,
-  );
+  const ticket = useAppSelector(selectCurrentTicket);
+  const isDetailsLoading = useAppSelector(selectCurrentTicketLoading);
+  const detailsError = useAppSelector(selectCurrentTicketError);
+  const comments = useAppSelector(selectComments);
+
+  const loading = isDetailsLoading && !ticket;
+  const errorMessage = !id ? "Invalid ticket ID" : detailsError;
   const [copied, setCopied] = useState<boolean>(false);
 
-  // Modals state
   const [assignModalOpen, setAssignModalOpen] = useState<boolean>(false);
   const [statusModalOpen, setStatusModalOpen] = useState<boolean>(false);
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    // If ticket is already populated or ID is invalid, do not initiate fetch
-    if (!id || (ticket && ticket._id === id)) {
-      return;
+    if (!id) return;
+
+    // Use initial navigation state for instantaneous optimistic UI if available
+    const navTicket = (location.state as { ticket?: Ticket } | null)?.ticket;
+    if (navTicket && navTicket._id === id) {
+      dispatch(setCurrentTicket(navTicket));
     }
 
-    let isMounted = true;
-
-    // Attempt to locate ticket via existing GET /tickets list API
-    getTicketsApi({ limit: 100 })
-      .then((res) => {
-        if (!isMounted) return;
-        const found = res.items.find((t) => t._id === id);
-        if (found) {
-          setTicket(found);
-          setLoading(false);
-        } else {
-          setErrorMessage(
-            "Ticket could not be retrieved directly. Note: A dedicated GET /tickets/:id backend API endpoint is not yet implemented; please navigate to this ticket from the Tickets list.",
-          );
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!isMounted) return;
-        const msg =
-          err && typeof err === "object" && "message" in err
-            ? String((err as { message: unknown }).message)
-            : "Failed to load ticket details.";
-        setErrorMessage(msg);
-        setLoading(false);
-      });
+    // Always fetch fresh ticket data from backend to prevent stale data
+    dispatch(fetchTicketById(id));
 
     return () => {
-      isMounted = false;
+      dispatch(clearCurrentTicket());
     };
-  }, [id, ticket]);
+  }, [id, dispatch, location.state]);
 
   const getAssigneeId = (
     assignedTo?: TicketUserSummary | string | null,
@@ -99,6 +98,9 @@ export const TicketDetailsPage: React.FC = () => {
   };
 
   const canUpdateStatus = (t: Ticket): boolean => {
+    if (t.isDeleted) {
+      return false;
+    }
     if (isAdmin) {
       return true;
     }
@@ -115,23 +117,28 @@ export const TicketDetailsPage: React.FC = () => {
     return false;
   };
 
-  const handleCopyId = () => {
-    if (!ticket) return;
-    navigator.clipboard.writeText(ticket._id);
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
     setCopied(true);
-    message.success("Ticket ID copied to clipboard");
+    message.success("Ticket link copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleStatusSuccess = (updated?: Ticket) => {
     if (updated) {
-      setTicket(updated);
+      dispatch(setCurrentTicket(updated));
+    }
+  };
+
+  const handleEditSuccess = () => {
+    if (id) {
+      dispatch(fetchTicketById(id));
     }
   };
 
   const handleAssignSuccess = (updated?: Ticket) => {
     if (updated) {
-      setTicket(updated);
+      dispatch(setCurrentTicket(updated));
     }
   };
 
@@ -141,7 +148,7 @@ export const TicketDetailsPage: React.FC = () => {
         return (
           <Tag
             color="blue"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
           >
             Open
           </Tag>
@@ -150,7 +157,7 @@ export const TicketDetailsPage: React.FC = () => {
         return (
           <Tag
             color="orange"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
             In Progress
           </Tag>
@@ -159,7 +166,7 @@ export const TicketDetailsPage: React.FC = () => {
         return (
           <Tag
             color="green"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
           >
             Resolved
           </Tag>
@@ -168,7 +175,7 @@ export const TicketDetailsPage: React.FC = () => {
         return (
           <Tag
             color="default"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border text-gray-500 bg-gray-100/80 border-gray-200"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
           >
             Closed
           </Tag>
@@ -184,27 +191,27 @@ export const TicketDetailsPage: React.FC = () => {
         return (
           <Tag
             color="red"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
           >
-            High
+            High Priority
           </Tag>
         );
       case "MEDIUM":
         return (
           <Tag
             color="gold"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
           >
-            Medium
+            Medium Priority
           </Tag>
         );
       case "LOW":
         return (
           <Tag
             color="cyan"
-            className="m-0 text-xs font-medium px-2.5 py-0.5 rounded-full border"
+            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
           >
-            Low
+            Low Priority
           </Tag>
         );
       default:
@@ -218,9 +225,28 @@ export const TicketDetailsPage: React.FC = () => {
   ) => {
     if (!userRef) {
       return (
-        <span className="inline-flex items-center text-xs text-gray-400 font-normal italic bg-gray-50 border border-dashed border-gray-200 px-2 py-0.5 rounded">
-          Unassigned
-        </span>
+        <div className="flex flex-col items-center justify-center p-4 bg-gray-50/80 rounded-xl border border-dashed border-gray-200 text-center">
+          <div className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 mb-2 shadow-2xs">
+            <UserOutlined />
+          </div>
+          <p className="text-xs font-bold text-gray-700 m-0">
+            No Agent Assigned
+          </p>
+          <p className="text-[11px] text-gray-400 m-0 mt-0.5">
+            This ticket is awaiting triage or assignment.
+          </p>
+          {isAdmin && ticket && !ticket.isDeleted && (
+            <Button
+              type="default"
+              size="small"
+              icon={<UserOutlined />}
+              onClick={() => setAssignModalOpen(true)}
+              className="mt-3 text-xs h-8"
+            >
+              Assign Agent
+            </Button>
+          )}
+        </div>
       );
     }
 
@@ -229,19 +255,26 @@ export const TicketDetailsPage: React.FC = () => {
       return (
         <div className="flex items-center gap-3">
           <div
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 border ${
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 border shadow-2xs select-none ${
               isAssignee
-                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                : "bg-gray-100 border-gray-200 text-gray-600"
+                ? "bg-purple-100 border-purple-200 text-purple-700"
+                : "bg-indigo-50 border-indigo-200 text-indigo-700"
             }`}
           >
             {initial}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-900 m-0 truncate">
-              {userRef.name}
-            </p>
-            <p className="text-xs text-gray-500 m-0 truncate">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="text-sm font-bold text-gray-900 m-0 truncate">
+                {userRef.name}
+              </p>
+              {userRef.role && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 border border-gray-200/60">
+                  {userRef.role === "ADMIN" ? "Admin" : "Agent"}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 m-0 truncate mt-0.5">
               {userRef.email}
             </p>
           </div>
@@ -250,55 +283,70 @@ export const TicketDetailsPage: React.FC = () => {
     }
 
     return (
-      <span className="font-mono text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-        ID: {userRef}
-      </span>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-500 flex items-center justify-center text-xs font-bold shrink-0">
+          <UserOutlined />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-gray-800 m-0 truncate">
+            {isAssignee ? "Assigned Agent" : "Ticket Creator"}
+          </p>
+        </div>
+      </div>
     );
   };
 
   return (
-    <div className="pb-12 max-w-6xl mx-auto">
-      {/* Top Navigation Bar */}
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <AppButton
+    <div className="pb-16 max-w-6xl mx-auto space-y-6">
+      {/* Top Navigation & Header Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <Button
           type="default"
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate("/tickets")}
-          className="h-9 px-3.5 text-xs font-medium text-gray-700 bg-white border-gray-200 hover:border-indigo-400 hover:text-indigo-600 rounded-lg shadow-2xs transition-colors"
+          className="h-10 px-4 text-xs font-semibold text-gray-700 bg-white border-gray-200 hover:border-purple-300 hover:text-purple-600 rounded-lg shadow-2xs transition-colors self-start sm:self-auto"
         >
           Back to Tickets
-        </AppButton>
+        </Button>
 
         {ticket && (
-          <div className="flex items-center gap-2">
-            {/* Action: Update Status (Admin or permitted Support Agent) */}
+          <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
             {canUpdateStatus(ticket) && (
-              <AppButton
+              <Button
                 type="default"
                 icon={<SyncOutlined />}
                 onClick={() => setStatusModalOpen(true)}
-                className="h-9 px-3.5 text-xs font-medium text-gray-700 bg-white border-gray-200 hover:border-indigo-400 hover:text-indigo-600 rounded-lg shadow-2xs transition-colors"
+                className="h-10 px-4 text-xs font-semibold text-gray-700 bg-white border-gray-200 hover:border-purple-300 hover:text-purple-600 rounded-lg shadow-2xs transition-colors"
               >
                 Update Status
-              </AppButton>
+              </Button>
             )}
 
-            {/* Action: Assign or Reassign Agent (Admin only) */}
-            {isAdmin && (
-              <AppButton
-                type="primary"
-                icon={<UserOutlined />}
-                onClick={() => setAssignModalOpen(true)}
-                className="h-9 px-3.5 text-xs font-medium rounded-lg shadow-2xs transition-colors"
-              >
-                {ticket.assignedToId ? "Reassign Agent" : "Assign Agent"}
-              </AppButton>
+            {isAdmin && !ticket.isDeleted && (
+              <>
+                <Button
+                  type="default"
+                  icon={<EditOutlined />}
+                  onClick={() => setEditModalOpen(true)}
+                  className="h-10 px-4 text-xs font-semibold text-gray-700 bg-white border-gray-200 hover:border-purple-300 hover:text-purple-600 rounded-lg shadow-2xs transition-colors"
+                >
+                  Edit Ticket
+                </Button>
+
+                <Button
+                  type="primary"
+                  icon={<UserOutlined />}
+                  onClick={() => setAssignModalOpen(true)}
+                  className="h-10 px-4 text-xs font-semibold rounded-lg shadow-sm bg-purple-600 hover:bg-purple-700 border-purple-600"
+                >
+                  {ticket.assignedToId ? "Reassign Agent" : "Assign Agent"}
+                </Button>
+              </>
             )}
           </div>
         )}
       </div>
 
-      {/* Loading state */}
       {loading && (
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-16 flex flex-col items-center justify-center gap-3">
           <Spin size="large" />
@@ -308,7 +356,6 @@ export const TicketDetailsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Error / Not Found state */}
       {!loading && errorMessage && (
         <div className="space-y-4">
           <Alert
@@ -318,49 +365,90 @@ export const TicketDetailsPage: React.FC = () => {
             description={errorMessage}
             className="rounded-xl border border-amber-200 shadow-2xs text-xs"
           />
-          <AppButton
+          <Button
             type="primary"
             onClick={() => navigate("/tickets")}
             className="h-9 px-4 text-xs font-medium"
           >
             Return to Tickets List
-          </AppButton>
+          </Button>
         </div>
       )}
 
-      {/* Ticket Details View */}
       {!loading && ticket && (
         <div className="space-y-6">
+          {/* Soft-deleted notice */}
+          {ticket.isDeleted && (
+            <Alert
+              type="warning"
+              showIcon
+              message="Archived Soft-Deleted Ticket"
+              description={`This ticket has been soft-deleted by an administrator (Reason: "${
+                ticket.deletionReason || "No reason specified"
+              }"). It is archived and excluded from active support workflows.`}
+              className="rounded-xl border border-amber-200/80 bg-amber-50/80 shadow-2xs"
+            />
+          )}
+
+          {/* Overdue deadline warning if applicable */}
+          {isTicketOverdue(ticket.dueDate, ticket.status) && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-50/90 border border-rose-200/80 text-rose-800 text-xs shadow-2xs">
+              <ClockCircleOutlined className="text-rose-600 text-base shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-rose-900 block">
+                  Deadline Passed
+                </span>
+                <span className="text-rose-700 font-normal">
+                  This ticket has passed its target resolution deadline (Target:{" "}
+                  {formatDueDate(ticket.dueDate)}). Please prioritize diagnosis
+                  and resolution.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Ticket Header Card */}
           <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-xs font-mono font-medium text-gray-400 bg-gray-100/90 border border-gray-200/60 px-2 py-0.5 rounded">
-                    #{ticket._id.slice(-6).toUpperCase()}
-                  </span>
+                {/* Badges Bar */}
+                <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                  <Tooltip title={`Ticket Document Ref: ${ticket._id}`}>
+                    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 select-all cursor-default">
+                      <TagOutlined className="text-[10px]" />#
+                      {ticket._id.slice(-6).toUpperCase()}
+                    </span>
+                  </Tooltip>
                   {getStatusTag(ticket.status)}
                   {getPriorityTag(ticket.priority)}
+                  {renderDueDateBadge(ticket.dueDate, ticket.status)}
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight leading-snug m-0 wrap-break-word">
+
+                {/* Main Ticket Title */}
+                <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug m-0 wrap-break-word">
                   {ticket.title}
                 </h1>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <Tooltip title={copied ? "Copied!" : "Copy Ticket ID"}>
+              {/* Header Right Actions */}
+              <div className="flex items-center gap-2 shrink-0 self-start">
+                <Tooltip
+                  title={
+                    copied ? "Copied to clipboard!" : "Copy direct ticket link"
+                  }
+                >
                   <button
                     type="button"
-                    onClick={handleCopyId}
-                    className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer"
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-700 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 border border-gray-200 hover:border-purple-200 rounded-lg px-3 py-2 transition-colors cursor-pointer shadow-2xs"
                   >
                     {copied ? (
                       <CheckOutlined className="text-emerald-600" />
                     ) : (
-                      <CopyOutlined />
+                      <LinkOutlined className="text-gray-500" />
                     )}
-                    <span className="font-mono text-[11px]">
-                      {ticket._id.slice(-8)}
+                    <span className="font-semibold text-xs">
+                      {copied ? "Link Copied" : "Copy Link"}
                     </span>
                   </button>
                 </Tooltip>
@@ -368,53 +456,53 @@ export const TicketDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Grid Layout: Main Description + Sidebar Metadata */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column (2/3 width) - Description and History */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Description Box */}
-              <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5 sm:p-6">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 select-none">
-                  Description
-                </h2>
-                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap wrap-break-word">
-                  {ticket.description}
-                </div>
-              </div>
+          {/* Ticket Lifecycle Stepper */}
+          <TicketLifecycleProgress status={ticket.status} />
 
-              {/* Timestamps Box */}
+          {/* Ticket Metadata Summary */}
+          <TicketMetadataSummary ticket={ticket} />
+
+          {/* Two-Column Responsive Content Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Main Column (col-span-8) */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Ticket Description */}
               <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5 sm:p-6">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 select-none">
-                  Activity Timestamps
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3">
-                    <CalendarOutlined className="text-gray-400 mt-0.5 text-base" />
-                    <div>
-                      <p className="text-xs text-gray-500 m-0">Created Date</p>
-                      <p className="text-sm font-medium text-gray-800 m-0 mt-0.5">
-                        {new Date(ticket.createdAt).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </p>
+                <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                      <FileTextOutlined className="text-base" />
                     </div>
+                    <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider m-0 select-none">
+                      Description & Details
+                    </h2>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <ClockCircleOutlined className="text-gray-400 mt-0.5 text-base" />
-                    <div>
-                      <p className="text-xs text-gray-500 m-0">Last Updated</p>
-                      <p className="text-sm font-medium text-gray-800 m-0 mt-0.5">
-                        {new Date(ticket.updatedAt).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </p>
-                    </div>
-                  </div>
+                  {isAdmin && !ticket.isDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => setEditModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 cursor-pointer bg-transparent border-none p-0 transition-colors"
+                    >
+                      <EditOutlined className="text-[11px]" />
+                      <span>Edit Description</span>
+                    </button>
+                  )}
                 </div>
+
+                {ticket.description?.trim() ? (
+                  <div className="text-sm sm:text-base text-gray-800 leading-relaxed whitespace-pre-wrap wrap-break-word">
+                    {ticket.description}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-xs">
+                    No description provided for this support ticket.
+                  </div>
+                )}
               </div>
+
+              {/* Ticket Activity Timeline */}
+              <TicketActivityTimeline ticket={ticket} comments={comments} />
 
               {/* Ticket Comments & Discussion */}
               <TicketComments
@@ -423,50 +511,63 @@ export const TicketDetailsPage: React.FC = () => {
               />
             </div>
 
-            {/* Right Column (1/3 width) - Ticket Properties */}
-            <div className="space-y-6">
-              {/* Assignee Card */}
+            {/* Right Information Column (col-span-4) */}
+            <div className="lg:col-span-4 space-y-5">
+              {/* Assignment Card */}
               <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider m-0 select-none">
-                    Assignee
+                <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-gray-100">
+                  <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider m-0 select-none">
+                    Assignment
                   </h2>
-                  {isAdmin && (
+                  {isAdmin && !ticket.isDeleted && (
                     <button
                       type="button"
                       onClick={() => setAssignModalOpen(true)}
-                      className="text-xs font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer bg-transparent border-none p-0"
+                      className="text-xs font-semibold text-purple-600 hover:text-purple-700 cursor-pointer bg-transparent border-none p-0 transition-colors"
                     >
-                      {ticket.assignedToId ? "Change" : "Assign"}
+                      {ticket.assignedToId ? "Reassign" : "Assign"}
                     </button>
                   )}
                 </div>
                 {renderUserDetail(ticket.assignedToId, true)}
               </div>
 
-              {/* Creator Card */}
-              <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 select-none">
-                  Created By
-                </h2>
-                {renderUserDetail(ticket.createdById, false)}
-              </div>
-
-              {/* Status & Priority Overview Card */}
-              <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5 space-y-4">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider m-0 select-none">
+              {/* Ticket Properties Card */}
+              <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5 space-y-3.5">
+                <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider m-0 pb-2.5 border-b border-gray-100 select-none">
                   Ticket Properties
                 </h2>
 
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-xs text-gray-500">Status</span>
+                <div className="flex items-center justify-between text-xs py-1">
+                  <span className="text-gray-500 font-medium">Status</span>
                   <div className="flex items-center gap-2">
                     {getStatusTag(ticket.status)}
                     {canUpdateStatus(ticket) && (
                       <button
                         type="button"
                         onClick={() => setStatusModalOpen(true)}
-                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer bg-transparent border-none p-0"
+                        className="text-xs font-semibold text-purple-600 hover:text-purple-700 cursor-pointer bg-transparent border-none p-0 transition-colors"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs py-1 border-t border-gray-100">
+                  <span className="text-gray-500 font-medium">Priority</span>
+                  <div>{getPriorityTag(ticket.priority)}</div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs py-1 border-t border-gray-100">
+                  <span className="text-gray-500 font-medium">Due Date</span>
+                  <div className="flex items-center gap-2">
+                    {renderDueDateBadge(ticket.dueDate, ticket.status)}
+                    {isAdmin && !ticket.isDeleted && (
+                      <button
+                        type="button"
+                        onClick={() => setEditModalOpen(true)}
+                        className="text-xs font-semibold text-purple-600 hover:text-purple-700 cursor-pointer bg-transparent border-none p-0 transition-colors"
                       >
                         Edit
                       </button>
@@ -474,25 +575,30 @@ export const TicketDetailsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-xs text-gray-500">Priority</span>
-                  <div>{getPriorityTag(ticket.priority)}</div>
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-xs text-gray-500">System ID</span>
-                  <span className="font-mono text-xs text-gray-600 select-all">
-                    {ticket._id}
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-100">
+                  <span className="text-gray-500 font-medium">Ticket Age</span>
+                  <span className="text-gray-800 font-semibold tabular-nums">
+                    {getTicketAge(ticket.createdAt)}
                   </span>
                 </div>
+              </div>
+
+              {/* Reporter / Creator Card */}
+              <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-5">
+                <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3.5 pb-2.5 border-b border-gray-100 select-none">
+                  Reporter
+                </h2>
+                {renderUserDetail(ticket.createdById, false)}
               </div>
             </div>
           </div>
 
-          {/* Modals */}
+          {/* Modals for Assignment, Status, and Edit */}
           {isAdmin && (
             <AssignTicketModal
-              key={`assign-${ticket._id}-${ticket.assignedToId ? "assigned" : "unassigned"}`}
+              key={`assign-${ticket._id}-${
+                ticket.assignedToId ? "assigned" : "unassigned"
+              }`}
               ticket={ticket}
               open={assignModalOpen}
               onClose={() => setAssignModalOpen(false)}
@@ -507,6 +613,16 @@ export const TicketDetailsPage: React.FC = () => {
             onClose={() => setStatusModalOpen(false)}
             onSuccess={handleStatusSuccess}
           />
+
+          {isAdmin && (
+            <CreateTicketModal
+              key={`edit-${ticket._id}`}
+              ticket={ticket}
+              open={editModalOpen}
+              onClose={() => setEditModalOpen(false)}
+              onSuccess={handleEditSuccess}
+            />
+          )}
         </div>
       )}
     </div>

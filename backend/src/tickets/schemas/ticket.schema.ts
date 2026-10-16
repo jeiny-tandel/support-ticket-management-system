@@ -62,14 +62,48 @@ export class Ticket {
   })
   assignedToId?: Types.ObjectId | null;
 
+  @Prop({
+    type: Boolean,
+    default: false,
+    index: true,
+  })
+  isDeleted: boolean;
+
+  @Prop({
+    type: String,
+    trim: true,
+    default: null,
+  })
+  deletionReason?: string | null;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: User.name,
+    default: null,
+  })
+  deletedById?: Types.ObjectId | null;
+
+  @Prop({
+    type: Date,
+    default: null,
+  })
+  deletedAt?: Date | null;
+
+  @Prop({
+    type: Date,
+    default: null,
+  })
+  dueDate?: Date | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
 
-// Indexes supporting key query patterns
 TicketSchema.index({ createdAt: -1 });
 TicketSchema.index({ status: 1, priority: 1, createdAt: -1 });
 TicketSchema.index({ assignedToId: 1, createdAt: -1 });
 TicketSchema.index({ createdById: 1, createdAt: -1 });
+TicketSchema.index({ isDeleted: 1, createdAt: -1 });
+TicketSchema.index({ isDeleted: 1, deletedAt: -1 });
