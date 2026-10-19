@@ -12,7 +12,22 @@ export const fetchComments = createAsyncThunk<
   { rejectValue: string }
 >('comments/fetchComments', async (ticketId, { rejectWithValue }) => {
   try {
-    const comments = await getTicketCommentsApi(ticketId);
+    const rawComments = await getTicketCommentsApi(ticketId);
+
+    // Deduplicate comments by _id to guard against duplicate entries
+    const commentMap = new Map<string, TicketComment>();
+    for (const c of rawComments) {
+      if (c && c._id) {
+        commentMap.set(c._id, c);
+      }
+    }
+
+    // Sort chronologically (oldest to newest) before dispatching to slice
+    const comments = Array.from(commentMap.values()).sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
     return { ticketId, comments };
   } catch (error) {
     const normalized = normalizeApiError(error);

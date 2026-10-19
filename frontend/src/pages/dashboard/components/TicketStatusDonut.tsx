@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import { Tooltip } from "antd";
 import { PieChartOutlined } from "@ant-design/icons";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { TicketSummaryResponse } from "../../../types";
 
 interface TicketStatusDonutProps {
@@ -10,12 +10,50 @@ interface TicketStatusDonutProps {
 
 interface StatusSlice {
   key: string;
-  label: string;
+  name: string;
   count: number;
   color: string;
   bgDot: string;
   percent: number;
 }
+
+interface DonutTooltipPayloadItem {
+  name?: string;
+  value?: number;
+  payload?: {
+    name: string;
+    value: number;
+    color: string;
+    percent: number;
+    isEmpty?: boolean;
+  };
+}
+
+interface DonutTooltipProps {
+  active?: boolean;
+  payload?: DonutTooltipPayloadItem[];
+}
+
+const DonutTooltip: React.FC<DonutTooltipProps> = ({ active, payload }) => {
+  if (active && payload && payload.length > 0) {
+    const data = payload[0].payload;
+    if (!data || data.isEmpty) return null;
+    return (
+      <div className="bg-gray-900/95 backdrop-blur-xs text-white text-xs px-3 py-2 rounded-lg shadow-xl border border-gray-700/60 pointer-events-none">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{ backgroundColor: data.color }}
+          />
+          <span className="font-medium text-gray-200">{data.name}:</span>
+          <span className="font-bold text-white tabular-nums">{data.value}</span>
+          <span className="text-gray-400 tabular-nums">({data.percent}%)</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 export const TicketStatusDonut: React.FC<TicketStatusDonutProps> = ({
   summary,
@@ -27,28 +65,28 @@ export const TicketStatusDonut: React.FC<TicketStatusDonutProps> = ({
     const raw = [
       {
         key: "OPEN",
-        label: "Open",
+        name: "Open",
         count: summary?.open ?? 0,
         color: "#3b82f6",
         bgDot: "bg-blue-500",
       },
       {
         key: "IN_PROGRESS",
-        label: "In Progress",
+        name: "In Progress",
         count: summary?.inProgress ?? 0,
         color: "#f59e0b",
         bgDot: "bg-amber-500",
       },
       {
         key: "RESOLVED",
-        label: "Resolved",
+        name: "Resolved",
         count: summary?.resolved ?? 0,
         color: "#10b981",
         bgDot: "bg-emerald-500",
       },
       {
         key: "CLOSED",
-        label: "Closed",
+        name: "Closed",
         count: summary?.closed ?? 0,
         color: "#64748b",
         bgDot: "bg-slate-500",
@@ -61,48 +99,24 @@ export const TicketStatusDonut: React.FC<TicketStatusDonutProps> = ({
     }));
   }, [summary, total]);
 
-  const size = 136;
-  const strokeWidth = 14;
-  const radius = 50;
-  const center = size / 2;
-  const circumference = 2 * Math.PI * radius;
+  const activeSlices = useMemo(
+    () => slices.filter((s) => s.count > 0),
+    [slices],
+  );
 
-  let accumulatedLength = 0;
-  const activeSlices = slices.filter((s) => s.count > 0);
-  const hasMultipleActive = activeSlices.length > 1;
-
-  const renderedSegments = slices.map((slice) => {
-    if (total === 0 || slice.count === 0) return null;
-
-    const fraction = slice.count / total;
-    const sliceLength = fraction * circumference;
-    const gap = hasMultipleActive ? 2.5 : 0;
-    const effectiveLength = Math.max(0, sliceLength - gap);
-    const dashArray = `${effectiveLength} ${circumference - effectiveLength}`;
-    const offset = -accumulatedLength;
-
-    accumulatedLength += sliceLength;
-
-    return (
-      <Tooltip
-        key={slice.key}
-        title={`${slice.label}: ${slice.count} (${slice.percent}%)`}
-      >
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke={slice.color}
-          strokeWidth={strokeWidth}
-          strokeDasharray={dashArray}
-          strokeDashoffset={offset}
-          transform={`rotate(-90 ${center} ${center})`}
-          className="transition-all duration-500 ease-out hover:opacity-85 cursor-pointer"
-        />
-      </Tooltip>
-    );
-  });
+  const chartData = useMemo(() => {
+    if (total === 0) {
+      return [{ name: "No Tickets", value: 1, color: "#f1f5f9", percent: 0, isEmpty: true }];
+    }
+    return activeSlices.map((s) => ({
+      name: s.name,
+      value: s.count,
+      color: s.color,
+      percent: s.percent,
+      key: s.key,
+      isEmpty: false,
+    }));
+  }, [activeSlices, total]);
 
   return (
     <div className="flex flex-col h-full justify-between flex-1">
@@ -133,24 +147,34 @@ export const TicketStatusDonut: React.FC<TicketStatusDonutProps> = ({
         </div>
       ) : (
         <div className="py-2.5 flex flex-col sm:flex-row xl:flex-col min-[1400px]:flex-row items-center justify-center gap-3.5 flex-1 w-full min-w-0">
-          <div className="relative shrink-0 flex items-center justify-center">
-            <svg
-              width={size}
-              height={size}
-              viewBox={`0 0 ${size} ${size}`}
-              className="overflow-visible"
-            >
-              <circle
-                cx={center}
-                cy={center}
-                r={radius}
-                fill="none"
-                stroke="#f1f5f9"
-                strokeWidth={strokeWidth}
-              />
-
-              {renderedSegments}
-            </svg>
+          <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={44}
+                  outerRadius={62}
+                  paddingAngle={total > 0 && chartData.length > 1 ? 3 : 0}
+                  stroke="none"
+                  isAnimationActive={true}
+                  animationDuration={500}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`donut-cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                {total > 0 && (
+                  <Tooltip
+                    content={<DonutTooltip />}
+                    wrapperStyle={{ outline: "none", zIndex: 50 }}
+                  />
+                )}
+              </PieChart>
+            </ResponsiveContainer>
 
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
               <span className="text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums leading-none">
@@ -173,7 +197,7 @@ export const TicketStatusDonut: React.FC<TicketStatusDonutProps> = ({
                     className={`w-2 h-2 rounded-full shrink-0 ${slice.bgDot}`}
                   />
                   <span className="font-medium text-gray-700 whitespace-nowrap">
-                    {slice.label}
+                    {slice.name}
                   </span>
                 </div>
 

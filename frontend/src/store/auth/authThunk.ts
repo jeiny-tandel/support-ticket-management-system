@@ -48,23 +48,31 @@ export const registerAgent = createAsyncThunk<
 /**
  * Validates the stored token by fetching the current user profile from the backend.
  * Clears the stored token on rejection (e.g. 401 Unauthorized / expired).
+ * Returns null intentionally when no token is present so the application initializes cleanly.
  */
 export const fetchCurrentUser = createAsyncThunk<
-  User,
+  { user: User; token: string } | null,
   void,
   { rejectValue: string }
 >('auth/fetchCurrentUser', async (_, { rejectWithValue }) => {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (!token) {
-    return rejectWithValue('No authentication token found');
+    return null;
   }
 
   try {
     const user = await getMeApi();
-    return user;
+    return { user, token };
   } catch (error) {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     const normalized = normalizeApiError(error);
     return rejectWithValue(normalized.message);
   }
+});
+
+/**
+ * Logs out the user by clearing the persisted access token.
+ */
+export const logout = createAsyncThunk<void, void>('auth/logout', async () => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
 });

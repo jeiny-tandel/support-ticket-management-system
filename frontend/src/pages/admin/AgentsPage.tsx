@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Table, Tag, Input, Alert, Tooltip, Segmented } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -15,12 +15,17 @@ import {
   SwapOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
-import { getUsersApi, type BackendUserResponse } from '../../api';
+import {
+  getUsersApi,
+  type BackendUserResponse,
+  type PaginatedUsersResponse,
+} from '../../api';
 import { Button, PageHeader } from '../../components/common';
 import { AgentFormModal, ChangeRoleModal, DeleteUserModal } from './components';
 import { USER_ROLES, type UserRole } from '../../constants/roles';
-import { useAppSelector } from '../../hooks';
+import { useAppSelector, useDebounce } from '../../hooks';
 import { selectCurrentUser } from '../../store';
+import { getAvatarInitial, formatDate } from '../../utils';
 
 const AVATAR_PALETTES = [
   { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200/80' },
@@ -44,13 +49,35 @@ const getAvatarPalette = (name: string) => {
 export const AgentsPage: React.FC = () => {
   const currentUser = useAppSelector(selectCurrentUser);
   const [users, setUsers] = useState<BackendUserResponse[]>([]);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Search input & debounced value
+  const [searchInput, setSearchInput] = useState<string>('');
+  const debouncedSearch = useDebounce(searchInput.trim(), 350);
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
+
+  // Server-side pagination
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const searchReqIdRef = useRef<number>(0);
+
+  // Reset pagination to page 1 during render when debouncedSearch changes
+  const [prevSearch, setPrevSearch] = useState<string>(debouncedSearch);
+  if (debouncedSearch !== prevSearch) {
+    setPrevSearch(debouncedSearch);
+    setPage(1);
+    setLoading(true);
+  }
+
+  // Global summary counts across the complete dataset
+  const [counts, setCounts] = useState<{
+    total: number;
+    agents: number;
+    admins: number;
+  }>({ total: 0, agents: 0, admins: 0 });
 
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [editingAgent, setEditingAgent] = useState<BackendUserResponse | null>(null);
@@ -96,19 +123,56 @@ export const AgentsPage: React.FC = () => {
     setUserToDelete(null);
   };
 
+
+  // Fetch global dataset counts for All, Agents, and Admins across the entire platform
   useEffect(() => {
     let isMounted = true;
 
-    getUsersApi()
-      .then((data) => {
+    Promise.all([
+      getUsersApi({ role: USER_ROLES.SUPPORT_AGENT, limit: 1 }),
+      getUsersApi({ role: USER_ROLES.ADMIN, limit: 1 }),
+    ])
+      .then(([agentRes, adminRes]) => {
         if (isMounted) {
-          setUsers(data);
+          const agents = agentRes.total;
+          const admins = adminRes.total;
+          setCounts({
+            total: agents + admins,
+            agents,
+            admins,
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to load global user counts:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshTrigger]);
+
+  // Fetch paginated, filtered, and searched users from backend
+  useEffect(() => {
+    let isMounted = true;
+    const reqId = ++searchReqIdRef.current;
+
+    getUsersApi({
+      page,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      role: roleFilter !== 'ALL' ? roleFilter : undefined,
+    })
+      .then((data: PaginatedUsersResponse) => {
+        if (isMounted && reqId === searchReqIdRef.current) {
+          setUsers(data.items);
+          setTotalUsers(data.total);
           setErrorMessage(null);
           setLoading(false);
         }
       })
       .catch((err: unknown) => {
-        if (isMounted) {
+        if (isMounted && reqId === searchReqIdRef.current) {
           const msg =
             err && typeof err === 'object' && 'message' in err
               ? String((err as { message: unknown }).message)
@@ -121,7 +185,7 @@ export const AgentsPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [refreshTrigger]);
+  }, [page, pageSize, debouncedSearch, roleFilter, refreshTrigger]);
 
   const handleRefresh = () => {
     setLoading(true);
@@ -129,36 +193,16 @@ export const AgentsPage: React.FC = () => {
   };
 
   const handleClearSearch = () => {
-    setSearchQuery('');
+    setLoading(true);
+    setSearchInput('');
     setPage(1);
   };
 
-  const totalCount = users.length;
-  const agentCount = useMemo(
-    () => users.filter((u) => u.role === USER_ROLES.SUPPORT_AGENT).length,
-    [users],
-  );
-  const adminCount = useMemo(
-    () => users.filter((u) => u.role === USER_ROLES.ADMIN).length,
-    [users],
-  );
-
-  const filteredUsers = useMemo(() => {
-    let list = users;
-
-    if (roleFilter !== 'ALL') {
-      list = list.filter((user) => user.role === roleFilter);
-    }
-
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return list;
-
-    return list.filter(
-      (user) =>
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query),
-    );
-  }, [users, roleFilter, searchQuery]);
+  const handleRoleFilterChange = (val: 'ALL' | UserRole) => {
+    setLoading(true);
+    setRoleFilter(val);
+    setPage(1);
+  };
 
   const columns: ColumnsType<BackendUserResponse> = [
     {
@@ -169,7 +213,7 @@ export const AgentsPage: React.FC = () => {
       render: (_: string, record: BackendUserResponse) => {
         const isCurrent =
           currentUser?.id === record._id || currentUser?.id === record.id;
-        const initial = record.name ? record.name.charAt(0).toUpperCase() : '?';
+        const initial = getAvatarInitial(record.name);
         const palette = getAvatarPalette(record.name || record._id);
 
         return (
@@ -242,13 +286,7 @@ export const AgentsPage: React.FC = () => {
       render: (createdAt?: string) => (
         <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">
           <CalendarOutlined className="text-[11px] text-gray-400" />
-          {createdAt
-            ? new Date(createdAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })
-            : '—'}
+          {formatDate(createdAt)}
         </span>
       ),
     },
@@ -392,7 +430,7 @@ export const AgentsPage: React.FC = () => {
             <span>Users & Support Agents</span>
             {!loading && (
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 tabular-nums">
-                {totalCount} {totalCount === 1 ? 'User' : 'Users'}
+                {counts.total} {counts.total === 1 ? 'User' : 'Users'}
               </span>
             )}
           </div>
@@ -416,15 +454,12 @@ export const AgentsPage: React.FC = () => {
             <Input
               placeholder="Search by name or email..."
               prefix={<SearchOutlined className="text-gray-400 text-sm" />}
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               allowClear
               className="w-full sm:w-72 h-10 rounded-lg text-sm"
             />
-            {searchQuery && (
+            {searchInput && (
               <Button
                 type="text"
                 size="middle"
@@ -438,14 +473,11 @@ export const AgentsPage: React.FC = () => {
 
             <Segmented
               value={roleFilter}
-              onChange={(val) => {
-                setRoleFilter(val as 'ALL' | UserRole);
-                setPage(1);
-              }}
+              onChange={(val) => handleRoleFilterChange(val as 'ALL' | UserRole)}
               options={[
-                { label: `All (${totalCount})`, value: 'ALL' },
-                { label: `Agents (${agentCount})`, value: USER_ROLES.SUPPORT_AGENT },
-                { label: `Admins (${adminCount})`, value: USER_ROLES.ADMIN },
+                { label: `All (${counts.total})`, value: 'ALL' },
+                { label: `Agents (${counts.agents})`, value: USER_ROLES.SUPPORT_AGENT },
+                { label: `Admins (${counts.admins})`, value: USER_ROLES.ADMIN },
               ]}
               className="bg-gray-100 p-0.5 rounded-lg text-xs font-medium"
             />
@@ -488,26 +520,27 @@ export const AgentsPage: React.FC = () => {
         <Table<BackendUserResponse>
           rowKey="_id"
           columns={columns}
-          dataSource={filteredUsers}
+          dataSource={users}
           loading={loading}
           scroll={{ x: 800 }}
           pagination={{
             current: page,
             pageSize: pageSize,
-            total: filteredUsers.length,
+            total: totalUsers,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
             showTotal: (totalFiltered, range) => (
               <span className="text-xs text-gray-500 font-normal">
                 Showing{' '}
                 <strong className="text-gray-700 font-semibold">
-                  {range[0]}-{range[1]}
+                  {totalFiltered > 0 ? `${range[0]}-${range[1]}` : '0-0'}
                 </strong>{' '}
                 of <strong className="text-gray-700 font-semibold">{totalFiltered}</strong>{' '}
                 users
               </span>
             ),
             onChange: (newPage, newPageSize) => {
+              setLoading(true);
               setPage(newPage);
               setPageSize(newPageSize);
             },
@@ -516,7 +549,7 @@ export const AgentsPage: React.FC = () => {
           }}
           className="solvix-agents-table"
           locale={{
-            emptyText: searchQuery || roleFilter !== 'ALL' ? (
+            emptyText: debouncedSearch || roleFilter !== 'ALL' ? (
               <div className="py-12 text-center">
                 <SearchOutlined className="text-3xl text-gray-300 mb-2" />
                 <p className="text-sm font-semibold text-gray-700 m-0">
@@ -530,7 +563,7 @@ export const AgentsPage: React.FC = () => {
                   size="small"
                   onClick={() => {
                     handleClearSearch();
-                    setRoleFilter('ALL');
+                    handleRoleFilterChange('ALL');
                   }}
                   className="mt-3 text-purple-600 hover:text-purple-700 font-semibold p-0"
                 >

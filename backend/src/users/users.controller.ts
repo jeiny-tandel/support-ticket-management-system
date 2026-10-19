@@ -17,7 +17,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { UserDocument } from './schemas/user.schema';
-import { UsersService } from './users.service';
+import { UsersService, PaginatedUsersResult } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -40,8 +40,10 @@ export class UsersController {
   @Get()
   @Permissions(Permission.MANAGE_USERS)
   @HttpCode(HttpStatus.OK)
-  async findAll(@Query() query: GetUsersQueryDto): Promise<UserDocument[]> {
-    return this.usersService.findAll(query.role);
+  async findAll(
+    @Query() query: GetUsersQueryDto,
+  ): Promise<PaginatedUsersResult> {
+    return this.usersService.findAll(query);
   }
 
   @Get(':id')

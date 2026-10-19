@@ -1,21 +1,13 @@
 import React from 'react';
 
 export interface PageHeaderProps {
-  /** Primary page title */
   title: React.ReactNode;
-  /** Optional descriptive subtitle or context */
   subtitle?: React.ReactNode;
-  /** Optional action elements (e.g. primary buttons, filters, selectors) */
   extra?: React.ReactNode;
-  /** Optional breadcrumb navigation element */
   breadcrumbs?: React.ReactNode;
-  /** Optional container CSS class */
   className?: string;
 }
 
-/**
- * Reusable PageHeader component providing consistent titles, subtitles, and action areas.
- */
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
   subtitle,

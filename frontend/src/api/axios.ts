@@ -26,10 +26,6 @@ export class ApiError extends Error implements NormalizedApiError {
   }
 }
 
-/**
- * Normalizes backend error responses (e.g., NestJS HttpExceptionFilter output),
- * network disconnects, or client-side request failures into a consistent ApiError.
- */
 export function normalizeApiError(error: unknown): ApiError {
   if (error instanceof ApiError) {
     return error;
@@ -129,7 +125,6 @@ export const apiClient: AxiosInstance = axios.create({
   timeout: 15000,
 });
 
-// Request interceptor: attach existing JWT access token if available
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -141,7 +136,6 @@ apiClient.interceptors.request.use(
   (error: unknown) => Promise.reject(normalizeApiError(error)),
 );
 
-// Response interceptor: normalize all errors, handling 401 without redirect loops
 apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {

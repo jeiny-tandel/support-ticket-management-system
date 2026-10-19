@@ -8,7 +8,7 @@ import {
 } from '../../../types';
 import { useAppDispatch, useAppSelector } from '../../../hooks';
 import { selectUserRole, updateTicketStatus, fetchTicketSummary } from '../../../store';
-import { Button, Modal } from '../../../components/common';
+import { Button, Modal, TicketStatusBadge } from '../../../components/common';
 
 interface UpdateStatusModalProps {
   ticket: Ticket | null;
@@ -42,6 +42,7 @@ const STATUS_CONFIG: Record<
     description: 'Ticket completed, verified, and finalized',
   },
 };
+
 
 export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
   ticket,
@@ -153,11 +154,7 @@ export const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
       <div className="space-y-4 pt-2">
         <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-600">Current Status:</span>
-          {ticket && (
-            <Tag color={STATUS_CONFIG[ticket.status]?.color || 'default'} className="m-0 font-medium">
-              {STATUS_CONFIG[ticket.status]?.label || ticket.status}
-            </Tag>
-          )}
+          {ticket && <TicketStatusBadge status={ticket.status} />}
         </div>
 
         <div>

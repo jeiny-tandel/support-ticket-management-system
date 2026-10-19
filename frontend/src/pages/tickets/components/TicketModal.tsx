@@ -10,14 +10,14 @@ import { Button, Modal } from '../../../components/common';
 
 const { TextArea } = Input;
 
-export interface CreateTicketModalProps {
+export interface TicketModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
   ticket?: Ticket | null;
 }
 
-export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
+export const TicketModal: React.FC<TicketModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -247,3 +247,5 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     </Modal>
   );
 };
+
+export default TicketModal;

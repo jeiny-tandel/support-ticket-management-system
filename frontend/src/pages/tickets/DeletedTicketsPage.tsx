@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Table, Tag, Alert, Tooltip } from "antd";
+import { Table, Alert, Tooltip, Input, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   ArrowLeftOutlined,
@@ -8,8 +8,11 @@ import {
   DeleteOutlined,
   InfoCircleOutlined,
   UserOutlined,
+  SearchOutlined,
+  FilterOutlined,
+  ClearOutlined,
 } from "@ant-design/icons";
-import { useAppDispatch, useAppSelector } from "../../hooks";
+import { useAppDispatch, useAppSelector, useDebounce } from "../../hooks";
 import {
   selectDeletedTickets,
   selectDeletedTotal,
@@ -26,7 +29,8 @@ import type {
   TicketStatus,
   TicketUserSummary,
 } from "../../types";
-import { Button } from "../../components/common";
+import { Button, TicketStatusBadge, TicketPriorityBadge } from "../../components/common";
+import { getAvatarInitial, formatDate, formatTime } from "../../utils";
 import { ROUTES } from "../../constants/routes";
 
 export const DeletedTicketsPage: React.FC = () => {
@@ -41,94 +45,83 @@ export const DeletedTicketsPage: React.FC = () => {
   const errorMessage = useAppSelector(selectDeletedError);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
+  const [searchInput, setSearchInput] = useState<string>("");
+  const debouncedSearch = useDebounce(searchInput.trim(), 350);
+  const prevSearchRef = useRef<string>(debouncedSearch);
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | undefined>(
+    undefined,
+  );
+  const [priorityFilter, setPriorityFilter] = useState<
+    TicketPriority | undefined
+  >(undefined);
+
+  // Fetch deleted tickets from backend with search, filters, and pagination
   useEffect(() => {
-    dispatch(fetchDeletedTickets({ page, limit }));
-  }, [dispatch, page, limit, refreshTrigger]);
+    // If debouncedSearch changed and page is not 1 yet, reset page and skip fetching for stale page
+    if (prevSearchRef.current !== debouncedSearch) {
+      prevSearchRef.current = debouncedSearch;
+      if (page !== 1) {
+        dispatch(setDeletedPagination({ page: 1, limit }));
+        return;
+      }
+    }
+
+    dispatch(
+      fetchDeletedTickets({
+        page,
+        limit,
+        search: debouncedSearch || undefined,
+        status: statusFilter,
+        priority: priorityFilter,
+      }),
+    );
+  }, [
+    dispatch,
+    page,
+    limit,
+    debouncedSearch,
+    statusFilter,
+    priorityFilter,
+    refreshTrigger,
+  ]);
 
   const handleRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value);
+  };
+
+  const handleSearchSubmit = () => {
+    // Search is automatically updated via useDebounce on searchInput
+  };
+
+  const handleStatusChange = (val?: TicketStatus) => {
+    setStatusFilter(val);
+    dispatch(setDeletedPagination({ page: 1, limit }));
+  };
+
+  const handlePriorityChange = (val?: TicketPriority) => {
+    setPriorityFilter(val);
+    dispatch(setDeletedPagination({ page: 1, limit }));
+  };
+
+  const handleResetFilters = () => {
+    setSearchInput("");
+    setStatusFilter(undefined);
+    setPriorityFilter(undefined);
+    dispatch(setDeletedPagination({ page: 1, limit }));
   };
 
   const handlePageChange = (newPage: number, newPageSize: number) => {
     dispatch(setDeletedPagination({ page: newPage, limit: newPageSize }));
   };
 
-  const getStatusTag = (status: TicketStatus) => {
-    switch (status) {
-      case "OPEN":
-        return (
-          <Tag
-            color="blue"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
-          >
-            Open
-          </Tag>
-        );
-      case "IN_PROGRESS":
-        return (
-          <Tag
-            color="orange"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            In Progress
-          </Tag>
-        );
-      case "RESOLVED":
-        return (
-          <Tag
-            color="green"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
-          >
-            Resolved
-          </Tag>
-        );
-      case "CLOSED":
-        return (
-          <Tag
-            color="default"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
-          >
-            Closed
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{status}</Tag>;
-    }
-  };
+  const hasActiveFilters = Boolean(
+    searchInput.trim() || statusFilter || priorityFilter,
+  );
 
-  const getPriorityTag = (priority: TicketPriority) => {
-    switch (priority) {
-      case "HIGH":
-        return (
-          <Tag
-            color="red"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
-          >
-            High
-          </Tag>
-        );
-      case "MEDIUM":
-        return (
-          <Tag
-            color="gold"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            Medium
-          </Tag>
-        );
-      case "LOW":
-        return (
-          <Tag
-            color="cyan"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
-          >
-            Low
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{priority}</Tag>;
-    }
-  };
 
   const renderUserBadge = (
     userRef: TicketUserSummary | string | undefined | null,
@@ -143,7 +136,7 @@ export const DeletedTicketsPage: React.FC = () => {
     }
 
     if (typeof userRef === "object") {
-      const initial = userRef.name ? userRef.name.charAt(0).toUpperCase() : "?";
+      const initial = getAvatarInitial(userRef.name);
       return (
         <div className="flex items-center gap-2">
           <div
@@ -207,8 +200,8 @@ export const DeletedTicketsPage: React.FC = () => {
       width: 140,
       render: (_: unknown, record: Ticket) => (
         <div className="flex flex-col gap-1.5 items-start">
-          {getStatusTag(record.status)}
-          {getPriorityTag(record.priority)}
+          <TicketStatusBadge status={record.status} />
+          <TicketPriorityBadge priority={record.priority} />
         </div>
       ),
     },
@@ -231,17 +224,10 @@ export const DeletedTicketsPage: React.FC = () => {
         return (
           <div className="text-xs text-gray-600 flex flex-col">
             <span className="font-medium text-gray-800">
-              {d.toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+              {formatDate(d)}
             </span>
             <span className="text-[11px] text-gray-400 tabular-nums">
-              {d.toLocaleTimeString(undefined, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {formatTime(d)}
             </span>
           </div>
         );
@@ -346,6 +332,74 @@ export const DeletedTicketsPage: React.FC = () => {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs px-4 py-3 mb-6 transition-all">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Input
+              placeholder="Search deleted tickets..."
+              prefix={<SearchOutlined className="text-gray-400 text-sm" />}
+              value={searchInput}
+              onChange={handleSearchChange}
+              onPressEnter={handleSearchSubmit}
+              allowClear
+              className="w-full sm:w-64 md:w-72 h-10 rounded-lg text-sm"
+            />
+
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider select-none mr-1">
+              <FilterOutlined className="text-purple-600 text-xs" />
+              <span>Filters</span>
+            </span>
+
+            <Select<string>
+              value={statusFilter ?? "ALL"}
+              onChange={(val) => {
+                handleStatusChange(
+                  val === "ALL" || !val ? undefined : (val as TicketStatus),
+                );
+              }}
+              className="w-36 sm:w-44"
+              popupMatchSelectWidth={false}
+              options={[
+                { label: "All Statuses", value: "ALL" },
+                { label: "Open", value: "OPEN" },
+                { label: "In Progress", value: "IN_PROGRESS" },
+                { label: "Resolved", value: "RESOLVED" },
+                { label: "Closed", value: "CLOSED" },
+              ]}
+            />
+
+            <Select<string>
+              value={priorityFilter ?? "ALL"}
+              onChange={(val) => {
+                handlePriorityChange(
+                  val === "ALL" || !val ? undefined : (val as TicketPriority),
+                );
+              }}
+              className="w-36 sm:w-44"
+              popupMatchSelectWidth={false}
+              options={[
+                { label: "All Priorities", value: "ALL" },
+                { label: "High Priority", value: "HIGH" },
+                { label: "Medium Priority", value: "MEDIUM" },
+                { label: "Low Priority", value: "LOW" },
+              ]}
+            />
+
+            {hasActiveFilters && (
+              <Button
+                type="text"
+                size="middle"
+                onClick={handleResetFilters}
+                icon={<ClearOutlined />}
+                className="text-xs font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-50/80 h-10 px-3 rounded-lg border border-purple-100 transition-colors"
+              >
+                Reset Filters
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {errorMessage && (
         <Alert
           type="error"
@@ -393,7 +447,25 @@ export const DeletedTicketsPage: React.FC = () => {
           }}
           className="solvix-deleted-table"
           locale={{
-            emptyText: (
+            emptyText: hasActiveFilters ? (
+              <div className="py-12 text-center">
+                <SearchOutlined className="text-4xl text-gray-300 mb-2" />
+                <p className="text-sm font-semibold text-gray-700 m-0">
+                  No deleted tickets found
+                </p>
+                <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                  No deleted tickets matched your current search criteria and filters.
+                </p>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={handleResetFilters}
+                  className="mt-2 text-purple-600 hover:text-purple-700 p-0"
+                >
+                  Clear all filters
+                </Button>
+              </div>
+            ) : (
               <div className="py-12 text-center">
                 <DeleteOutlined className="text-4xl text-gray-300 mb-2" />
                 <p className="text-sm font-semibold text-gray-700 m-0">

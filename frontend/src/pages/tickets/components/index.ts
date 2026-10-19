@@ -1,4 +1,4 @@
-export * from './CreateTicketModal';
+export * from './TicketModal';
 export * from './AssignTicketModal';
 export * from './UpdateStatusModal';
 export * from './TicketComments';

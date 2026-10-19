@@ -13,6 +13,7 @@ import {
   getRelativeTime,
   getDeadlineDurationText,
   isTicketOverdue,
+  formatDateTime,
 } from '../../../utils';
 
 export interface TicketMetadataSummaryProps {
@@ -61,21 +62,9 @@ export const TicketMetadataSummary: React.FC<TicketMetadataSummaryProps> = ({
     return 'Ticket Reporter';
   };
 
-  const formattedCreated = new Date(ticket.createdAt).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const formattedCreated = formatDateTime(ticket.createdAt);
 
-  const formattedUpdated = new Date(ticket.updatedAt).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const formattedUpdated = formatDateTime(ticket.updatedAt);
 
   const items = [
     {

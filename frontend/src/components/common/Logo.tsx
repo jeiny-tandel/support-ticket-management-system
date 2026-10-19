@@ -2,15 +2,10 @@ import React from 'react';
 import { CustomerServiceOutlined } from '@ant-design/icons';
 
 export interface LogoProps {
-  /** Size variant for logo and text */
   size?: 'small' | 'middle' | 'large';
-  /** Whether to show the "SolviX" brand name text */
   showText?: boolean;
-  /** Optional subtitle or tagline */
   subtitle?: string;
-  /** Optional container CSS class */
   className?: string;
-  /** Optional click handler for navigation */
   onClick?: () => void;
 }
 

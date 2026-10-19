@@ -1,6 +1,17 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Tag } from "antd";
 import { FlagOutlined } from "@ant-design/icons";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+  CartesianGrid,
+  LabelList,
+} from "recharts";
 import type { TicketSummaryResponse } from "../../../types";
 
 interface TicketPriorityChartProps {
@@ -8,15 +19,47 @@ interface TicketPriorityChartProps {
   loading: boolean;
 }
 
-interface PriorityBarItem {
-  key: string;
-  label: string;
+interface PriorityChartItem {
+  priority: string;
+  name: string;
   count: number;
   percent: number;
-  barColor: string;
+  color: string;
   pillClass: string;
-  dotColor: string;
+  dotClass: string;
 }
+
+interface PriorityTooltipPayloadItem {
+  name?: string;
+  value?: number;
+  payload?: PriorityChartItem;
+}
+
+interface PriorityTooltipProps {
+  active?: boolean;
+  payload?: PriorityTooltipPayloadItem[];
+}
+
+const PriorityTooltip: React.FC<PriorityTooltipProps> = ({ active, payload }) => {
+  if (active && payload && payload.length > 0) {
+    const data = payload[0].payload;
+    if (!data) return null;
+    return (
+      <div className="bg-gray-900/95 backdrop-blur-xs text-white text-xs px-3 py-2 rounded-lg shadow-xl border border-gray-700/60 pointer-events-none">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{ backgroundColor: data.color }}
+          />
+          <span className="font-semibold text-white">{data.name} Priority:</span>
+          <span className="font-bold text-white tabular-nums">{data.count}</span>
+          <span className="text-gray-400 tabular-nums">({data.percent}%)</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 export const TicketPriorityChart: React.FC<TicketPriorityChartProps> = ({
   summary,
@@ -29,38 +72,42 @@ export const TicketPriorityChart: React.FC<TicketPriorityChartProps> = ({
   const mediumCount = priorities?.medium ?? 0;
   const highCount = priorities?.high ?? 0;
 
-  const getPercent = (count: number) =>
-    total > 0 ? Math.round((count / total) * 100) : 0;
+  const chartData: PriorityChartItem[] = useMemo(() => {
+    const calcPercent = (count: number) =>
+      total > 0 ? Math.round((count / total) * 100) : 0;
 
-  const items: PriorityBarItem[] = [
-    {
-      key: "HIGH",
-      label: "High Priority",
-      count: highCount,
-      percent: getPercent(highCount),
-      barColor: "bg-rose-500",
-      pillClass: "bg-rose-50 text-rose-700 border-rose-200/80",
-      dotColor: "bg-rose-500",
-    },
-    {
-      key: "MEDIUM",
-      label: "Medium Priority",
-      count: mediumCount,
-      percent: getPercent(mediumCount),
-      barColor: "bg-amber-500",
-      pillClass: "bg-amber-50 text-amber-700 border-amber-200/80",
-      dotColor: "bg-amber-500",
-    },
-    {
-      key: "LOW",
-      label: "Low Priority",
-      count: lowCount,
-      percent: getPercent(lowCount),
-      barColor: "bg-teal-500",
-      pillClass: "bg-teal-50 text-teal-700 border-teal-200/80",
-      dotColor: "bg-teal-500",
-    },
-  ];
+    return [
+      {
+        priority: "HIGH",
+        name: "High",
+        count: highCount,
+        percent: calcPercent(highCount),
+        color: "#f43f5e",
+        pillClass: "bg-rose-50 text-rose-700 border-rose-200/80",
+        dotClass: "bg-rose-500",
+      },
+      {
+        priority: "MEDIUM",
+        name: "Medium",
+        count: mediumCount,
+        percent: calcPercent(mediumCount),
+        color: "#f59e0b",
+        pillClass: "bg-amber-50 text-amber-700 border-amber-200/80",
+        dotClass: "bg-amber-500",
+      },
+      {
+        priority: "LOW",
+        name: "Low",
+        count: lowCount,
+        percent: calcPercent(lowCount),
+        color: "#14b8a6",
+        pillClass: "bg-teal-50 text-teal-700 border-teal-200/80",
+        dotClass: "bg-teal-500",
+      },
+    ];
+  }, [highCount, mediumCount, lowCount, total]);
+
+  const maxCount = Math.max(highCount, mediumCount, lowCount);
 
   return (
     <div className="flex flex-col h-full justify-between flex-1">
@@ -89,52 +136,93 @@ export const TicketPriorityChart: React.FC<TicketPriorityChartProps> = ({
 
       {loading ? (
         <div className="py-6 space-y-3 animate-pulse flex-1 flex flex-col justify-center">
-          <div className="h-3.5 w-3/4 bg-gray-100 rounded" />
-          <div className="h-2 w-full bg-gray-100 rounded-full" />
-          <div className="h-3.5 w-1/2 bg-gray-100 rounded" />
-          <div className="h-2 w-full bg-gray-100 rounded-full" />
-          <div className="h-3.5 w-2/3 bg-gray-100 rounded" />
-          <div className="h-2 w-full bg-gray-100 rounded-full" />
+          <div className="h-24 w-full bg-gray-50 rounded-lg" />
+          <div className="h-6 w-full bg-gray-100 rounded" />
         </div>
       ) : (
-        <div className="py-3 flex flex-col justify-center flex-1 space-y-3">
-          {items.map((item) => (
-            <div key={item.key} className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${item.dotColor}`}
-                  />
-                  <span className="font-semibold text-gray-800 text-xs whitespace-nowrap">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border tabular-nums shrink-0 ${item.pillClass}`}
-                  >
-                    {item.percent}%
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="font-extrabold text-xs text-gray-900 tabular-nums">
-                    {item.count}
-                  </span>
-                  <span className="text-[11px] text-gray-400 font-normal">
-                    tickets
-                  </span>
-                </div>
-              </div>
-
-              <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ease-out ${item.barColor}`}
-                  style={{
-                    width: `${Math.max(item.count > 0 ? 3 : 0, item.percent)}%`,
-                  }}
+        <div className="py-2.5 flex flex-col justify-between flex-1 gap-2">
+          <div className="w-full h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 16, right: 12, left: -22, bottom: 0 }}
+                barSize={34}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#f1f5f9"
                 />
+                <XAxis
+                  dataKey="name"
+                  axisLine={{ stroke: "#e2e8f0" }}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#94a3b8", fontSize: 10 }}
+                  domain={[
+                    0,
+                    maxCount > 0 ? Math.ceil(maxCount * 1.25) : 3,
+                  ]}
+                />
+                <Tooltip
+                  content={<PriorityTooltip />}
+                  cursor={{ fill: "rgba(248, 250, 252, 0.75)" }}
+                  wrapperStyle={{ outline: "none", zIndex: 50 }}
+                />
+                <Bar
+                  dataKey="count"
+                  radius={[5, 5, 0, 0]}
+                  isAnimationActive={true}
+                  animationDuration={500}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`priority-cell-${index}`} fill={entry.color} />
+                  ))}
+                  <LabelList
+                    dataKey="count"
+                    position="top"
+                    formatter={(val: unknown) =>
+                      typeof val === "number" && val > 0 ? val : ""
+                    }
+                    style={{
+                      fill: "#475569",
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+            {chartData.map((item) => (
+              <div
+                key={item.priority}
+                className={`flex items-center justify-between px-2 py-1 rounded-lg border text-xs min-w-0 ${item.pillClass}`}
+              >
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.dotClass}`}
+                  />
+                  <span className="font-semibold truncate text-[11px]">
+                    {item.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 font-bold tabular-nums text-xs">
+                  <span>{item.count}</span>
+                  <span className="text-[10px] font-normal opacity-75">
+                    ({item.percent}%)
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 

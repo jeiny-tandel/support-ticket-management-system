@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Tag, Alert, Spin, Tooltip, message } from "antd";
+import { Alert, Spin, Tooltip, message } from "antd";
 import {
   ArrowLeftOutlined,
   UserOutlined,
@@ -26,15 +26,13 @@ import {
 } from "../../store";
 import type {
   Ticket,
-  TicketPriority,
-  TicketStatus,
   TicketUserSummary,
 } from "../../types";
-import { Button } from "../../components/common";
+import { Button, TicketStatusBadge, TicketPriorityBadge } from "../../components/common";
 import {
   AssignTicketModal,
   UpdateStatusModal,
-  CreateTicketModal,
+  TicketModal,
   TicketComments,
   TicketLifecycleProgress,
   TicketMetadataSummary,
@@ -45,6 +43,7 @@ import {
   isTicketOverdue,
   formatDueDate,
   getTicketAge,
+  getAvatarInitial,
 } from "../../utils";
 
 export const TicketDetailsPage: React.FC = () => {
@@ -142,82 +141,7 @@ export const TicketDetailsPage: React.FC = () => {
     }
   };
 
-  const getStatusTag = (status: TicketStatus) => {
-    switch (status) {
-      case "OPEN":
-        return (
-          <Tag
-            color="blue"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
-          >
-            Open
-          </Tag>
-        );
-      case "IN_PROGRESS":
-        return (
-          <Tag
-            color="orange"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            In Progress
-          </Tag>
-        );
-      case "RESOLVED":
-        return (
-          <Tag
-            color="green"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
-          >
-            Resolved
-          </Tag>
-        );
-      case "CLOSED":
-        return (
-          <Tag
-            color="default"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
-          >
-            Closed
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{status}</Tag>;
-    }
-  };
 
-  const getPriorityTag = (priority: TicketPriority) => {
-    switch (priority) {
-      case "HIGH":
-        return (
-          <Tag
-            color="red"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
-          >
-            High Priority
-          </Tag>
-        );
-      case "MEDIUM":
-        return (
-          <Tag
-            color="gold"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            Medium Priority
-          </Tag>
-        );
-      case "LOW":
-        return (
-          <Tag
-            color="cyan"
-            className="m-0 text-xs font-bold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
-          >
-            Low Priority
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{priority}</Tag>;
-    }
-  };
 
   const renderUserDetail = (
     userRef: TicketUserSummary | string | undefined | null,
@@ -251,7 +175,7 @@ export const TicketDetailsPage: React.FC = () => {
     }
 
     if (typeof userRef === "object") {
-      const initial = userRef.name ? userRef.name.charAt(0).toUpperCase() : "?";
+      const initial = getAvatarInitial(userRef.name);
       return (
         <div className="flex items-center gap-3">
           <div
@@ -419,8 +343,8 @@ export const TicketDetailsPage: React.FC = () => {
                       {ticket._id.slice(-6).toUpperCase()}
                     </span>
                   </Tooltip>
-                  {getStatusTag(ticket.status)}
-                  {getPriorityTag(ticket.priority)}
+                  <TicketStatusBadge status={ticket.status} />
+                  <TicketPriorityBadge priority={ticket.priority} showSuffix />
                   {renderDueDateBadge(ticket.dueDate, ticket.status)}
                 </div>
 
@@ -541,7 +465,7 @@ export const TicketDetailsPage: React.FC = () => {
                 <div className="flex items-center justify-between text-xs py-1">
                   <span className="text-gray-500 font-medium">Status</span>
                   <div className="flex items-center gap-2">
-                    {getStatusTag(ticket.status)}
+                    <TicketStatusBadge status={ticket.status} />
                     {canUpdateStatus(ticket) && (
                       <button
                         type="button"
@@ -556,7 +480,7 @@ export const TicketDetailsPage: React.FC = () => {
 
                 <div className="flex items-center justify-between text-xs py-1 border-t border-gray-100">
                   <span className="text-gray-500 font-medium">Priority</span>
-                  <div>{getPriorityTag(ticket.priority)}</div>
+                  <div><TicketPriorityBadge priority={ticket.priority} showSuffix /></div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs py-1 border-t border-gray-100">
@@ -615,7 +539,7 @@ export const TicketDetailsPage: React.FC = () => {
           />
 
           {isAdmin && (
-            <CreateTicketModal
+            <TicketModal
               key={`edit-${ticket._id}`}
               ticket={ticket}
               open={editModalOpen}

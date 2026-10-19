@@ -11,8 +11,19 @@ export interface BackendUserResponse {
   updatedAt?: string;
 }
 
+export interface PaginatedUsersResponse {
+  items: BackendUserResponse[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface GetUsersParams {
   role?: UserRole;
+  search?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateUserPayload {
@@ -27,23 +38,15 @@ export interface UpdateUserPayload {
   role?: UserRole;
 }
 
-/**
- * Fetches registered platform users with optional role filtering. (Admin only)
- * Backend endpoint: GET /users
- */
 export const getUsersApi = async (
   params?: GetUsersParams,
-): Promise<BackendUserResponse[]> => {
-  const response = await apiClient.get<BackendUserResponse[]>('/users', {
+): Promise<PaginatedUsersResponse> => {
+  const response = await apiClient.get<PaginatedUsersResponse>('/users', {
     params,
   });
   return response.data;
 };
 
-/**
- * Creates a new user. (Admin only)
- * Backend endpoint: POST /users
- */
 export const createUserApi = async (
   payload: CreateUserPayload,
 ): Promise<BackendUserResponse> => {
@@ -51,10 +54,6 @@ export const createUserApi = async (
   return response.data;
 };
 
-/**
- * Updates a user's name and/or role. (Admin only)
- * Backend endpoint: PATCH /users/:id
- */
 export const updateUserApi = async (
   id: string,
   payload: UpdateUserPayload,
@@ -66,10 +65,6 @@ export const updateUserApi = async (
   return response.data;
 };
 
-/**
- * Deletes a user account. (Admin only)
- * Backend endpoint: DELETE /users/:id
- */
 export const deleteUserApi = async (
   id: string,
 ): Promise<BackendUserResponse> => {

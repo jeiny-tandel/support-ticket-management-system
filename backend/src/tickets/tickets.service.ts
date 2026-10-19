@@ -186,7 +186,7 @@ export class TicketsService {
         .find(filter)
         .populate('createdById', 'name email role')
         .populate('assignedToId', 'name email role')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .exec(),

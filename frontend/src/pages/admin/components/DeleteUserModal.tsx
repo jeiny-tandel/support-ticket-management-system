@@ -9,6 +9,7 @@ import {
 import { deleteUserApi, type BackendUserResponse } from '../../../api';
 import { USER_ROLES } from '../../../constants/roles';
 import { Button, Modal } from '../../../components/common';
+import { getAvatarInitial } from '../../../utils';
 
 export interface DeleteUserModalProps {
   open: boolean;
@@ -87,7 +88,7 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
         {/* Target user information */}
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-200/80">
           <div className="w-10 h-10 rounded-full bg-rose-100 border border-rose-200 text-rose-700 font-bold flex items-center justify-center text-sm shrink-0">
-            {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+            {getAvatarInitial(user.name)}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">

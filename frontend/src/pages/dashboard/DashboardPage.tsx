@@ -15,7 +15,8 @@ import {
   FileTextOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
-import { PageHeader, Button, Card } from "../../components/common";
+import { PageHeader, Button, Card, TicketStatusBadge, TicketPriorityBadge } from "../../components/common";
+import { getAvatarInitial, formatDate } from "../../utils";
 import { ROUTES } from "../../constants/routes";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
@@ -32,8 +33,6 @@ import {
 } from "../../store";
 import type {
   Ticket,
-  TicketPriority,
-  TicketStatus,
 } from "../../types";
 import {
   TicketStatusDonut,
@@ -83,82 +82,6 @@ export const DashboardPage: React.FC = () => {
     navigate(`/tickets/${ticket._id}`, { state: { ticket } });
   };
 
-  const getStatusTag = (status: TicketStatus) => {
-    switch (status) {
-      case "OPEN":
-        return (
-          <Tag
-            color="blue"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
-          >
-            Open
-          </Tag>
-        );
-      case "IN_PROGRESS":
-        return (
-          <Tag
-            color="orange"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            In Progress
-          </Tag>
-        );
-      case "RESOLVED":
-        return (
-          <Tag
-            color="green"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
-          >
-            Resolved
-          </Tag>
-        );
-      case "CLOSED":
-        return (
-          <Tag
-            color="default"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
-          >
-            Closed
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{status}</Tag>;
-    }
-  };
-
-  const getPriorityTag = (priority: TicketPriority) => {
-    switch (priority) {
-      case "HIGH":
-        return (
-          <Tag
-            color="red"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
-          >
-            High
-          </Tag>
-        );
-      case "MEDIUM":
-        return (
-          <Tag
-            color="gold"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            Medium
-          </Tag>
-        );
-      case "LOW":
-        return (
-          <Tag
-            color="cyan"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
-          >
-            Low
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{priority}</Tag>;
-    }
-  };
 
   const greeting = currentUser?.name
     ? `Welcome back, ${currentUser.name}`
@@ -540,9 +463,7 @@ export const DashboardPage: React.FC = () => {
                   ? ticket.assignedToId
                   : null;
 
-              const initial = assignee?.name
-                ? assignee.name.charAt(0).toUpperCase()
-                : "?";
+              const initial = getAvatarInitial(assignee?.name);
 
               return (
                 <div
@@ -562,14 +483,7 @@ export const DashboardPage: React.FC = () => {
                       <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 flex-wrap">
                         <span className="flex items-center gap-1 text-gray-400">
                           <CalendarOutlined className="text-[11px]" />
-                          {new Date(ticket.createdAt).toLocaleDateString(
-                            undefined,
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            },
-                          )}
+                          {formatDate(ticket.createdAt)}
                         </span>
                         <span className="text-gray-300">•</span>
                         {assignee ? (
@@ -590,8 +504,8 @@ export const DashboardPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {getPriorityTag(ticket.priority)}
-                    {getStatusTag(ticket.status)}
+                    <TicketPriorityBadge priority={ticket.priority} />
+                    <TicketStatusBadge status={ticket.status} />
                     <RightOutlined className="text-xs text-gray-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all ml-1 hidden sm:inline-block" />
                   </div>
                 </div>

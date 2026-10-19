@@ -1,40 +1,32 @@
-import React from 'react';
-import { Input as AntInput, type InputProps as AntInputProps } from 'antd';
+import React from "react";
+import { Input as AntInput, type InputProps as AntInputProps } from "antd";
 
 export interface InputProps extends AntInputProps {
-  /** Optional label displayed above the input */
   label?: React.ReactNode;
-  /** Visual indicator for required fields */
   required?: boolean;
-  /** Validation error message displayed below the input (activates error status) */
   error?: string | null;
-  /** Optional helper text shown when there are no errors */
   helperText?: string;
-  /** When true, renders an Ant Design Password input with visibility toggle */
   isPassword?: boolean;
-  /** Optional wrapper container CSS class */
   containerClassName?: string;
 }
 
-/**
- * Reusable input component wrapping Ant Design Input and Input.Password.
- * Provides accessible labels, helper text, and error presentation.
- */
 export const Input: React.FC<InputProps> = ({
   label,
   required = false,
   error,
   helperText,
   isPassword = false,
-  containerClassName = '',
+  containerClassName = "",
   status,
   id,
   ...rest
 }) => {
-  const inputStatus = error ? 'error' : status;
+  const inputStatus = error ? "error" : status;
 
   return (
-    <div className={`flex flex-col gap-1.5 w-full ${containerClassName}`.trim()}>
+    <div
+      className={`flex flex-col gap-1.5 w-full ${containerClassName}`.trim()}
+    >
       {label && (
         <label
           htmlFor={id}

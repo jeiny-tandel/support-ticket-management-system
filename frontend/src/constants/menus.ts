@@ -1,7 +1,7 @@
-import { PERMISSIONS, type Permission } from './permissions';
-import { ROUTES } from './routes';
-import { hasPermission } from './role-permissions';
-import type { UserRole } from './roles';
+import { PERMISSIONS, type Permission } from "./permissions";
+import { ROUTES } from "./routes";
+import { hasPermission } from "./role-permissions";
+import type { UserRole } from "./roles";
 
 export interface MenuItem {
   key: string;
@@ -13,44 +13,42 @@ export interface MenuItem {
 
 export const MAIN_MENU_ITEMS: readonly MenuItem[] = [
   {
-    key: 'dashboard',
-    label: 'Dashboard',
+    key: "dashboard",
+    label: "Dashboard",
     path: ROUTES.DASHBOARD,
-    iconName: 'DashboardOutlined',
+    iconName: "DashboardOutlined",
     requiredPermission: PERMISSIONS.VIEW_DASHBOARD,
   },
   {
-    key: 'tickets',
-    label: 'Tickets',
+    key: "tickets",
+    label: "Tickets",
     path: ROUTES.TICKETS,
-    iconName: 'CustomerServiceOutlined',
+    iconName: "CustomerServiceOutlined",
     requiredPermission: PERMISSIONS.VIEW_ASSIGNED_TICKETS,
   },
   {
-    key: 'deleted-tickets',
-    label: 'Deleted Tickets',
+    key: "deleted-tickets",
+    label: "Deleted Tickets",
     path: ROUTES.DELETED_TICKETS,
-    iconName: 'DeleteOutlined',
+    iconName: "DeleteOutlined",
     requiredPermission: PERMISSIONS.MANAGE_TICKETS,
   },
   {
-    key: 'users',
-    label: 'Users',
+    key: "users",
+    label: "Users",
     path: ROUTES.USERS,
-    iconName: 'TeamOutlined',
+    iconName: "TeamOutlined",
     requiredPermission: PERMISSIONS.MANAGE_USERS,
   },
   {
-    key: 'profile',
-    label: 'Profile',
+    key: "profile",
+    label: "Profile",
     path: ROUTES.PROFILE,
-    iconName: 'UserOutlined',
+    iconName: "UserOutlined",
   },
 ] as const;
 
-/**
- * Filters navigation items based on the user's role-based permissions.
- */
+//Filters navigation items based on the user's role-based permissions.
 export const getAccessibleMenuItems = (role?: UserRole | null): MenuItem[] => {
   return MAIN_MENU_ITEMS.filter((item) => {
     if (!item.requiredPermission) {

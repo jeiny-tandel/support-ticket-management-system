@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Table, Tag, Select, Alert, Tooltip, Input } from "antd";
+import { Table, Select, Alert, Tooltip, Input } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   PlusOutlined,
@@ -15,7 +15,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { ROUTES } from "../../constants/routes";
-import { useAppDispatch, useAppSelector } from "../../hooks";
+import { useAppDispatch, useAppSelector, useDebounce } from "../../hooks";
 import {
   selectUserRole,
   selectTickets,
@@ -40,9 +40,9 @@ import type {
   TicketStatus,
   TicketUserSummary,
 } from "../../types";
-import { Button } from "../../components/common";
-import { CreateTicketModal, DeleteTicketModal } from "./components";
-import { renderDueDateBadge } from "../../utils";
+import { Button, TicketStatusBadge, TicketPriorityBadge } from "../../components/common";
+import { TicketModal, DeleteTicketModal } from "./components";
+import { renderDueDateBadge, getAvatarInitial, formatDate } from "../../utils";
 
 export const TicketsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -97,19 +97,14 @@ export const TicketsPage: React.FC = () => {
     setSearchInput(searchQuery);
   }
 
-  // Debounce search query update to Redux to avoid duplicate/excessive API requests
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      const trimmed = searchInput.trim();
-      if (trimmed !== searchQuery) {
-        dispatch(setSearchQuery(trimmed));
-      }
-    }, 350);
+  const debouncedSearch = useDebounce(searchInput.trim(), 350);
 
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchInput, searchQuery, dispatch]);
+  // Sync debounced search to Redux searchQuery
+  useEffect(() => {
+    if (debouncedSearch !== searchQuery) {
+      dispatch(setSearchQuery(debouncedSearch));
+    }
+  }, [debouncedSearch, searchQuery, dispatch]);
 
   useEffect(() => {
     dispatch(
@@ -138,7 +133,7 @@ export const TicketsPage: React.FC = () => {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchInput(val);
-    if (!val) {
+    if (!val && searchQuery !== "") {
       dispatch(setSearchQuery(""));
     }
   };
@@ -197,82 +192,7 @@ export const TicketsPage: React.FC = () => {
     dispatch(setPagination({ page: newPage, limit: newPageSize }));
   };
 
-  const getStatusTag = (status: TicketStatus) => {
-    switch (status) {
-      case "OPEN":
-        return (
-          <Tag
-            color="blue"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
-          >
-            Open
-          </Tag>
-        );
-      case "IN_PROGRESS":
-        return (
-          <Tag
-            color="orange"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            In Progress
-          </Tag>
-        );
-      case "RESOLVED":
-        return (
-          <Tag
-            color="green"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
-          >
-            Resolved
-          </Tag>
-        );
-      case "CLOSED":
-        return (
-          <Tag
-            color="default"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
-          >
-            Closed
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{status}</Tag>;
-    }
-  };
 
-  const getPriorityTag = (priority: TicketPriority) => {
-    switch (priority) {
-      case "HIGH":
-        return (
-          <Tag
-            color="red"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
-          >
-            High
-          </Tag>
-        );
-      case "MEDIUM":
-        return (
-          <Tag
-            color="gold"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            Medium
-          </Tag>
-        );
-      case "LOW":
-        return (
-          <Tag
-            color="cyan"
-            className="m-0 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
-          >
-            Low
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{priority}</Tag>;
-    }
-  };
 
   const renderUserBadge = (
     userRef: TicketUserSummary | string | undefined | null,
@@ -288,7 +208,7 @@ export const TicketsPage: React.FC = () => {
     }
 
     if (typeof userRef === "object") {
-      const initial = userRef.name ? userRef.name.charAt(0).toUpperCase() : "?";
+      const initial = getAvatarInitial(userRef.name);
       return (
         <Tooltip title={`${userRef.name} (${userRef.email})`}>
           <div className="inline-flex items-center gap-2 max-w-44">
@@ -342,7 +262,7 @@ export const TicketsPage: React.FC = () => {
       key: "status",
       width: 130,
       render: (status: TicketStatus) => (
-        <span className="inline-flex">{getStatusTag(status)}</span>
+        <span className="inline-flex"><TicketStatusBadge status={status} /></span>
       ),
     },
     {
@@ -351,7 +271,7 @@ export const TicketsPage: React.FC = () => {
       key: "priority",
       width: 110,
       render: (priority: TicketPriority) => (
-        <span className="inline-flex">{getPriorityTag(priority)}</span>
+        <span className="inline-flex"><TicketPriorityBadge priority={priority} /></span>
       ),
     },
     {
@@ -386,11 +306,7 @@ export const TicketsPage: React.FC = () => {
       render: (createdAt: string) => (
         <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">
           <CalendarOutlined className="text-[11px] text-gray-400" />
-          {new Date(createdAt).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+          {formatDate(createdAt)}
         </span>
       ),
     },
@@ -681,7 +597,7 @@ export const TicketsPage: React.FC = () => {
 
       {isAdmin && (
         <>
-          <CreateTicketModal
+          <TicketModal
             open={createModalOpen}
             ticket={editingTicket}
             onClose={handleCloseModal}

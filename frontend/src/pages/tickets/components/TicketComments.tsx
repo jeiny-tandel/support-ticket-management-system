@@ -24,7 +24,7 @@ import {
 import { socketService } from "../../../services";
 import type { TicketComment, TicketUserSummary } from "../../../types";
 import { Button } from "../../../components/common";
-import { getRelativeTime } from "../../../utils";
+import { getRelativeTime, getAvatarInitial } from "../../../utils";
 
 const { TextArea } = Input;
 const MAX_COMMENT_LENGTH = 5000;
@@ -144,12 +144,6 @@ export const TicketComments: React.FC<TicketCommentsProps> = ({
     }
   };
 
-  const getAuthorInitial = (author?: TicketUserSummary) => {
-    if (author?.name) {
-      return author.name.charAt(0).toUpperCase();
-    }
-    return "?";
-  };
 
   const isAuthorAdmin = (author?: TicketUserSummary) => {
     return author?.role === "ADMIN";
@@ -248,7 +242,7 @@ export const TicketComments: React.FC<TicketCommentsProps> = ({
                         : "bg-indigo-50 border-indigo-200 text-indigo-700"
                   }`}
                 >
-                  {getAuthorInitial(author)}
+                  {getAvatarInitial(author?.name)}
                 </div>
 
                 {/* Comment Body */}

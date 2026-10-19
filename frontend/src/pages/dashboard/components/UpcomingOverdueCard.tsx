@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Tag, Alert, Empty } from "antd";
+import { Alert, Empty } from "antd";
 import {
   RightOutlined,
   CalendarOutlined,
@@ -8,17 +8,16 @@ import {
   UserOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
-import { Card, Button } from "../../../components/common";
+import { Card, Button, TicketStatusBadge, TicketPriorityBadge } from "../../../components/common";
 import { ROUTES } from "../../../constants/routes";
 import {
   isTicketOverdue,
   isTicketDueToday,
   renderDueDateBadge,
 } from "../../../utils/ticketDueDate";
+import { getAvatarInitial } from "../../../utils";
 import type {
   UrgentTicketSummary,
-  TicketPriority,
-  TicketStatus,
 } from "../../../types";
 
 interface UpcomingOverdueCardProps {
@@ -38,82 +37,6 @@ export const UpcomingOverdueCard: React.FC<UpcomingOverdueCardProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  const getStatusTag = (status: TicketStatus) => {
-    switch (status) {
-      case "OPEN":
-        return (
-          <Tag
-            color="blue"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-blue-200/80 bg-blue-50/80 text-blue-700"
-          >
-            Open
-          </Tag>
-        );
-      case "IN_PROGRESS":
-        return (
-          <Tag
-            color="orange"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            In Progress
-          </Tag>
-        );
-      case "RESOLVED":
-        return (
-          <Tag
-            color="green"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-emerald-200/80 bg-emerald-50/80 text-emerald-700"
-          >
-            Resolved
-          </Tag>
-        );
-      case "CLOSED":
-        return (
-          <Tag
-            color="default"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-slate-200 text-slate-600 bg-slate-100/90"
-          >
-            Closed
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{status}</Tag>;
-    }
-  };
-
-  const getPriorityTag = (priority: TicketPriority) => {
-    switch (priority) {
-      case "HIGH":
-        return (
-          <Tag
-            color="red"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-rose-200/80 bg-rose-50/80 text-rose-700"
-          >
-            High
-          </Tag>
-        );
-      case "MEDIUM":
-        return (
-          <Tag
-            color="gold"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-200/80 bg-amber-50/80 text-amber-700"
-          >
-            Medium
-          </Tag>
-        );
-      case "LOW":
-        return (
-          <Tag
-            color="cyan"
-            className="m-0 text-xs font-semibold px-2 py-0.5 rounded-full border border-teal-200/80 bg-teal-50/80 text-teal-700"
-          >
-            Low
-          </Tag>
-        );
-      default:
-        return <Tag className="m-0 text-xs rounded-full">{priority}</Tag>;
-    }
-  };
 
   // Sort by urgency:
   // 1. Overdue tickets first, oldest deadlines first.
@@ -273,9 +196,7 @@ export const UpcomingOverdueCard: React.FC<UpcomingOverdueCardProps> = ({
           {displayTickets.map((ticket) => {
             const urgencyVisual = getUrgencyIconBox(ticket);
             const assignee = ticket.assignedToId;
-            const initial = assignee?.name
-              ? assignee.name.charAt(0).toUpperCase()
-              : "?";
+            const initial = getAvatarInitial(assignee?.name);
 
             return (
               <div
@@ -315,8 +236,8 @@ export const UpcomingOverdueCard: React.FC<UpcomingOverdueCardProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  {getPriorityTag(ticket.priority)}
-                  {getStatusTag(ticket.status)}
+                  <TicketPriorityBadge priority={ticket.priority} />
+                  <TicketStatusBadge status={ticket.status} />
                   <RightOutlined className="text-xs text-gray-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all ml-1 hidden sm:inline-block" />
                 </div>
               </div>

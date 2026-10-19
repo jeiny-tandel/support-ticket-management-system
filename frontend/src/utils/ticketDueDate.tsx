@@ -6,6 +6,7 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import type { TicketStatus } from '../types';
+import { formatDate } from './date';
 
 /**
  * Returns true if a ticket has passed its due date and is not in a completed status (RESOLVED or CLOSED).
@@ -77,14 +78,7 @@ export const isTicketDueSoon = (
  * Formats a due date into a human-readable string (e.g. "Oct 24, 2026").
  */
 export const formatDueDate = (dateStr?: string | Date | null): string => {
-  if (!dateStr) return 'Not set';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'Not set';
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDate(dateStr, 'Not set');
 };
 
 /**
@@ -176,11 +170,7 @@ export const getRelativeTime = (dateInput?: string | Date | null): string => {
   const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
 
   if (days > 30) {
-    return new Date(dateInput).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return formatDate(dateInput);
   }
   if (days > 0) {
     return isPast ? `${days}d ago` : `in ${days}d`;

@@ -16,28 +16,16 @@ export interface HeaderUser {
 }
 
 export interface HeaderProps {
-  /** Current sidebar collapse state */
   collapsed?: boolean;
-  /** Callback to toggle sidebar collapse */
   onToggleCollapse?: () => void;
-  /** Optional user profile to display in the header */
   user?: HeaderUser | null;
-  /** Callback when logout item is clicked */
   onLogout?: () => void;
-  /** Callback when profile item is clicked */
   onProfileClick?: () => void;
-  /** Additional custom content on the right side */
   rightContent?: React.ReactNode;
-  /** Whether to display the logo inside the header */
   showLogo?: boolean;
-  /** Optional container CSS class */
   className?: string;
 }
 
-/**
- * Reusable application header providing collapse toggle, branding, and user account actions.
- * Configured with crisp light styling and high-contrast readable typography.
- */
 export const Header: React.FC<HeaderProps> = ({
   collapsed = false,
   onToggleCollapse,

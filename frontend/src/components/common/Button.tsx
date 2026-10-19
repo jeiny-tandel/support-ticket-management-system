@@ -2,14 +2,9 @@ import React from 'react';
 import { Button as AntButton, type ButtonProps as AntButtonProps } from 'antd';
 
 export interface ButtonProps extends AntButtonProps {
-  /** Convenience flag to render button at 100% container width */
   fullWidth?: boolean;
 }
 
-/**
- * Reusable SolviX button extending Ant Design Button.
- * Preserves all native Ant Design behavior, HTML button attributes, and loading states.
- */
 export const Button: React.FC<ButtonProps> = ({
   fullWidth = false,
   className = '',

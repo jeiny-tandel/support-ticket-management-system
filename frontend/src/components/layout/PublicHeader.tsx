@@ -16,12 +16,10 @@ export const PublicHeader: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo */}
         <Link to={ROUTES.HOME} className="flex items-center">
           <Logo size="small" />
         </Link>
 
-        {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8">
           <Link
             to={ROUTES.HOME}
@@ -45,7 +43,6 @@ export const PublicHeader: React.FC = () => {
           </Link>
         </nav>
 
-        {/* Desktop Auth Action Buttons */}
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <Link to={ROUTES.DASHBOARD}>
@@ -67,7 +64,6 @@ export const PublicHeader: React.FC = () => {
           )}
         </div>
 
-        {/* Mobile Hamburger Toggle Button */}
         <div className="md:hidden flex items-center">
           <button
             type="button"
@@ -84,7 +80,6 @@ export const PublicHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 pt-3 pb-5 space-y-3 shadow-lg">
           <nav className="flex flex-col space-y-2">

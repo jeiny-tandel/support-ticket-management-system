@@ -1,7 +1,12 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { AUTH_TOKEN_KEY } from '../../constants/auth';
 import type { AuthState, User } from '../../types';
-import { fetchCurrentUser, login, registerAgent } from './authThunk';
+import {
+  fetchCurrentUser,
+  login,
+  registerAgent,
+  logout,
+} from './authThunk';
 
 const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
 
@@ -18,8 +23,7 @@ export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    logout: (state) => {
-      localStorage.removeItem(AUTH_TOKEN_KEY);
+    clearAuth: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
@@ -35,11 +39,6 @@ export const authSlice = createSlice({
     },
     setToken: (state, action: PayloadAction<string | null>) => {
       state.token = action.payload;
-      if (action.payload) {
-        localStorage.setItem(AUTH_TOKEN_KEY, action.payload);
-      } else {
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-      }
     },
     updateUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
@@ -95,11 +94,18 @@ export const authSlice = createSlice({
       })
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload;
-        state.token = localStorage.getItem(AUTH_TOKEN_KEY);
-        state.error = null;
         state.isInitialized = true;
+        if (action.payload) {
+          state.isAuthenticated = true;
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+          state.error = null;
+        } else {
+          state.isAuthenticated = false;
+          state.user = null;
+          state.token = null;
+          state.error = null;
+        }
       })
       .addCase(fetchCurrentUser.rejected, (state, action) => {
         state.isLoading = false;
@@ -107,15 +113,30 @@ export const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.isInitialized = true;
-        state.error =
-          action.payload === 'No authentication token found'
-            ? null
-            : (action.payload ?? null);
+        state.error = action.payload ?? 'Failed to authenticate user';
+      });
+
+    builder
+      .addCase(logout.pending, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.isLoading = false;
+        state.error = null;
+        state.isInitialized = true;
+      })
+      .addCase(logout.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.isLoading = false;
+        state.error = null;
+        state.isInitialized = true;
       });
   },
 });
 
-export const { logout, clearError, setInitialized, setToken, updateUser } =
+export const { clearAuth, clearError, setInitialized, setToken, updateUser } =
   authSlice.actions;
 export const authReducer = authSlice.reducer;
 

@@ -22,21 +22,13 @@ export interface SidebarItem {
 }
 
 export interface SidebarProps {
-  /** Whether the sidebar is collapsed */
   collapsed?: boolean;
-  /** Callback triggered when collapse state changes */
   onCollapse?: (collapsed: boolean) => void;
-  /** Navigation menu items */
   items: readonly SidebarItem[];
-  /** Currently active menu key */
   selectedKey?: string;
-  /** Callback when user selects an item */
   onSelectKey?: (key: string, item: SidebarItem) => void;
-  /** Optional custom header/brand component inside sidebar */
   brand?: React.ReactNode;
-  /** Optional footer component inside sidebar */
   footer?: React.ReactNode;
-  /** Optional container CSS class */
   className?: string;
 }
 
@@ -59,10 +51,6 @@ const getMenuIcon = (iconName?: string): React.ReactNode => {
   }
 };
 
-/**
- * Reusable sidebar navigation component wrapping Ant Design Layout.Sider.
- * Anchored to the dashboard viewport, collapsible without independent scroll jumping.
- */
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onCollapse,

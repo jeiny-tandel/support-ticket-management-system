@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Select, Alert, Spin, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import { useAppDispatch } from '../../../hooks';
 import { assignTicket, fetchTicketSummary } from '../../../store';
 import { getUsersApi, type BackendUserResponse } from '../../../api';
 import { USER_ROLES } from '../../../constants/roles';
-import type { Ticket } from '../../../types';
+import type { Ticket, TicketUserSummary } from '../../../types';
 import { Button, Modal } from '../../../components/common';
 
 interface AssignTicketModalProps {
@@ -22,49 +22,159 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
   onSuccess,
 }) => {
   const dispatch = useAppDispatch();
-  const currentAssigneeId = ticket?.assignedToId
-    ? typeof ticket.assignedToId === 'object'
-      ? ticket.assignedToId._id
-      : ticket.assignedToId
-    : null;
+
+  const currentAssignee =
+    ticket?.assignedToId && typeof ticket.assignedToId === 'object'
+      ? ticket.assignedToId
+      : null;
+  const currentAssigneeId =
+    currentAssignee?._id ||
+    (typeof ticket?.assignedToId === 'string' ? ticket.assignedToId : null);
 
   const [agents, setAgents] = useState<BackendUserResponse[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(currentAssigneeId);
-  const [isLoadingAgents, setIsLoadingAgents] = useState<boolean>(true);
+  const [selectedAgent, setSelectedAgent] = useState<
+    BackendUserResponse | TicketUserSummary | null
+  >(currentAssignee);
+  const [prevTicketId, setPrevTicketId] = useState<string | null>(ticket?._id ?? null);
+  const [prevOpen, setPrevOpen] = useState<boolean>(open);
+
+  const [initialTotal, setInitialTotal] = useState<number | null>(null);
+  const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(true);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
+  // Sync state during render when modal opens or ticket changes (prevents cascading renders)
+  if (open !== prevOpen || ticket?._id !== prevTicketId) {
+    setPrevOpen(open);
+    setPrevTicketId(ticket?._id ?? null);
+    if (open) {
+      setSelectedAgentId(currentAssigneeId);
+      setSelectedAgent(currentAssignee);
+      setIsLoadingInitial(true);
+      setFetchError(null);
+      setSubmitError(null);
+    }
+  }
 
-    let isMounted = true;
+  // Counter reference to discard out-of-order stale search responses
+  const searchReqIdRef = useRef<number>(0);
+  // Timer reference for debounced remote search queries
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    getUsersApi({ role: USER_ROLES.SUPPORT_AGENT })
-      .then((supportAgents) => {
-        if (isMounted) {
-          setAgents(supportAgents);
-          setIsLoadingAgents(false);
+  const handleSearch = useCallback((value: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    setIsSearching(true);
+    const reqId = ++searchReqIdRef.current;
+
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await getUsersApi({
+          role: USER_ROLES.SUPPORT_AGENT,
+          search: value.trim() || undefined,
+          limit: 50, // Respect backend maximum limit
+        });
+
+        if (reqId === searchReqIdRef.current) {
+          setAgents(res.items);
         }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
+      } catch (err: unknown) {
+        if (reqId === searchReqIdRef.current) {
           const msg =
             err && typeof err === 'object' && 'message' in err
               ? String((err as { message: unknown }).message)
               : 'Unable to load support agents. Please verify user management permissions.';
           setFetchError(msg);
-          setIsLoadingAgents(false);
+        }
+      } finally {
+        if (reqId === searchReqIdRef.current) {
+          setIsSearching(false);
+        }
+      }
+    }, 350);
+  }, []);
+
+  // Ensure currently selected or assigned agent is always preserved in options list
+  const combinedAgents = useMemo(() => {
+    const list = [...agents];
+    if (
+      selectedAgent &&
+      !list.some(
+        (a) =>
+          (a._id || a.id) ===
+          (selectedAgent._id || ('id' in selectedAgent ? selectedAgent.id : undefined)),
+      )
+    ) {
+      list.unshift({
+        _id: selectedAgent._id,
+        name: selectedAgent.name,
+        email: selectedAgent.email,
+        role: USER_ROLES.SUPPORT_AGENT,
+      });
+    }
+    return list;
+  }, [agents, selectedAgent]);
+
+  const handleSelectAgent = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    const chosen = combinedAgents.find((a) => (a._id || a.id) === agentId) || null;
+    if (chosen) {
+      setSelectedAgent(chosen);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      searchReqIdRef.current += 1;
+      return;
+    }
+
+    const reqId = ++searchReqIdRef.current;
+
+    getUsersApi({
+      role: USER_ROLES.SUPPORT_AGENT,
+      limit: 50,
+    })
+      .then((res) => {
+        if (reqId === searchReqIdRef.current) {
+          setAgents(res.items);
+          setInitialTotal(res.total);
+          setIsLoadingInitial(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (reqId === searchReqIdRef.current) {
+          const msg =
+            err && typeof err === 'object' && 'message' in err
+              ? String((err as { message: unknown }).message)
+              : 'Unable to load support agents. Please verify user management permissions.';
+          setFetchError(msg);
+          setIsLoadingInitial(false);
         }
       });
 
     return () => {
-      isMounted = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      searchReqIdRef.current += 1;
     };
   }, [open]);
 
   const handleCancel = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    searchReqIdRef.current += 1;
     setSelectedAgentId(null);
+    setSelectedAgent(null);
     setSubmitError(null);
     onClose();
   };
@@ -130,12 +240,12 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
         />
       )}
 
-      {isLoadingAgents ? (
+      {isLoadingInitial ? (
         <div className="py-8 flex flex-col items-center justify-center gap-2">
           <Spin size="default" />
           <p className="text-xs text-gray-500 m-0">Loading available Support Agents...</p>
         </div>
-      ) : agents.length === 0 && !fetchError ? (
+      ) : initialTotal === 0 && !fetchError ? (
         <div className="py-4">
           <Alert
             type="warning"
@@ -156,25 +266,34 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
             </label>
             <Select
               id="agent-select"
-              placeholder="Choose a Support Agent"
+              placeholder="Search support agent by name or email..."
               value={selectedAgentId}
-              onChange={(val) => setSelectedAgentId(val)}
-              className="w-full h-10"
-              disabled={isSubmitting || agents.length === 0}
+              onChange={handleSelectAgent}
+              onSearch={handleSearch}
               showSearch
-              filterOption={(input, option) =>
-                (option?.label ?? '')
-                  .toString()
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
+              filterOption={false}
+              loading={isSearching}
+              notFoundContent={
+                isSearching ? (
+                  <div className="py-2 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                    <Spin size="small" />
+                    <span>Searching agents...</span>
+                  </div>
+                ) : (
+                  <div className="py-2 text-center text-xs text-gray-400">
+                    No matching support agents found
+                  </div>
+                )
               }
-              options={agents.map((agent) => ({
+              className="w-full h-10"
+              disabled={isSubmitting || (initialTotal === 0 && !isLoadingInitial)}
+              options={combinedAgents.map((agent) => ({
                 label: `${agent.name} (${agent.email})`,
                 value: agent._id || agent.id || '',
               }))}
             />
             <p className="text-xs text-gray-400 mt-1.5 mb-0">
-              Only active Support Agent accounts can be assigned.
+              Only active Support Agent accounts can be assigned. Type to search all agents across the system.
             </p>
           </div>
 
@@ -190,7 +309,7 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
               type="primary"
               onClick={handleSubmit}
               loading={isSubmitting}
-              disabled={isSubmitting || !selectedAgentId || agents.length === 0}
+              disabled={isSubmitting || !selectedAgentId}
               icon={<UserOutlined />}
             >
               Confirm Assignment
@@ -201,3 +320,4 @@ export const AssignTicketModal: React.FC<AssignTicketModalProps> = ({
     </Modal>
   );
 };
+

@@ -6,34 +6,19 @@ import { Sidebar, type SidebarItem } from './Sidebar';
 const { Content } = AntLayout;
 
 export interface LayoutProps {
-  /** Page body content */
   children: React.ReactNode;
-  /** Optional sidebar navigation items */
   sidebarItems?: readonly SidebarItem[];
-  /** Currently selected menu item key */
   selectedMenuKey?: string;
-  /** Callback triggered when a menu item is clicked */
   onSelectMenuKey?: (key: string, item: SidebarItem) => void;
-  /** Authenticated user display details */
   user?: HeaderUser | null;
-  /** Callback triggered when logout action is clicked */
   onLogout?: () => void;
-  /** Callback triggered when My Profile action is clicked */
   onProfileClick?: () => void;
-  /** Optional extra elements for the header */
   headerExtra?: React.ReactNode;
-  /** Optional controlled collapsed state */
   collapsed?: boolean;
-  /** Optional callback when collapse state changes */
   onCollapseChange?: (collapsed: boolean) => void;
-  /** Optional layout CSS class */
   className?: string;
 }
 
-/**
- * Reusable layout shell integrating Header, Sidebar, and content area.
- * Configured with fixed sidebar and independent smooth scrolling main content.
- */
 export const Layout: React.FC<LayoutProps> = ({
   children,
   sidebarItems = [],

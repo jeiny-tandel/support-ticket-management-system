@@ -10,16 +10,21 @@ import * as bcrypt from 'bcrypt';
 import { Model, Types } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { User, UserDocument } from './schemas/user.schema';
 import { Ticket, TicketDocument } from '../tickets/schemas/ticket.schema';
 import { UserRole } from '../common/enums';
 
+export interface PaginatedUsersResult {
+  items: UserDocument[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class UsersService {
-  /**
-   * Concurrency mutex ensuring that operations affecting administrator counts
-   * (role demotions and admin deletions) execute sequentially to prevent race conditions.
-   */
   private adminGuardMutex: Promise<void> = Promise.resolve();
 
   private async withAdminGuardLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -97,9 +102,49 @@ export class UsersService {
     return user;
   }
 
-  async findAll(role?: UserRole): Promise<UserDocument[]> {
-    const filter = role ? { role } : {};
-    return this.userModel.find(filter).exec();
+  async findAll(query?: GetUsersQueryDto): Promise<PaginatedUsersResult> {
+    const filter: Record<string, any> = {};
+
+    if (query?.role) {
+      filter.role = query.role;
+    }
+
+    const search = query?.search?.trim();
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions: Record<string, any>[] = [
+        { name: { $regex: escaped, $options: 'i' } },
+        { email: { $regex: escaped, $options: 'i' } },
+      ];
+      if (Types.ObjectId.isValid(search) && search.length === 24) {
+        orConditions.push({ _id: new Types.ObjectId(search) });
+      }
+      filter.$or = orConditions;
+    }
+
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async updateProfile(id: string, name: string): Promise<UserDocument> {
@@ -173,7 +218,6 @@ export class UsersService {
         );
       }
 
-      // Prevent users from modifying their own role (prevents self-demotion and self-promotion)
       const isSelf =
         Boolean(requestingUserId) &&
         (requestingUserId === id ||
@@ -186,7 +230,6 @@ export class UsersService {
         throw new BadRequestException('Users cannot modify their own role');
       }
 
-      // If demoting an administrator, serialize via mutex to prevent concurrent demotion race conditions
       if (
         existingUser.role === UserRole.ADMIN &&
         updateUserDto.role === UserRole.SUPPORT_AGENT
@@ -248,7 +291,6 @@ export class UsersService {
       throw new UnauthorizedException('User authentication context is missing');
     }
 
-    // Prevent Admin from deleting their own account
     const isSelf =
       requestingUserId === id ||
       (Types.ObjectId.isValid(requestingUserId) &&
@@ -266,7 +308,6 @@ export class UsersService {
     }
 
     const executeDeletion = async (): Promise<UserDocument> => {
-      // Prevent deleting the last remaining admin
       if (user.role === UserRole.ADMIN) {
         const adminCount = await this.userModel
           .countDocuments({ role: UserRole.ADMIN })
@@ -278,13 +319,11 @@ export class UsersService {
         }
       }
 
-      // Step 1: Identify active ticket assignments for this user
       const assignedTickets = await this.ticketModel
         .find({ assignedToId: new Types.ObjectId(id) }, { _id: 1 })
         .exec();
       const assignedTicketIds = assignedTickets.map((t) => t._id);
 
-      // Step 2: Clear active ticket assignments so tickets return cleanly to the unassigned queue
       if (assignedTicketIds.length > 0) {
         await this.ticketModel
           .updateMany(
@@ -294,7 +333,6 @@ export class UsersService {
           .exec();
       }
 
-      // Step 3: Permanently delete user document with compensating rollback on failure
       try {
         const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
         if (!deletedUser) {
@@ -302,7 +340,6 @@ export class UsersService {
         }
         return deletedUser;
       } catch (deleteError) {
-        // Compensating transaction: Restore ticket assignments if user deletion failed
         if (assignedTicketIds.length > 0) {
           try {
             await this.ticketModel
@@ -312,7 +349,6 @@ export class UsersService {
               )
               .exec();
           } catch (compensationError) {
-            // Keep original error while logging compensation failure
             console.error(
               'Failed to compensate ticket assignments after user deletion failure:',
               compensationError,
@@ -323,7 +359,6 @@ export class UsersService {
       }
     };
 
-    // If deleting an admin, serialize via mutex to prevent concurrent last-admin deletion race conditions
     if (user.role === UserRole.ADMIN) {
       return this.withAdminGuardLock(executeDeletion);
     }
