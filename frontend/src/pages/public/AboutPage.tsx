@@ -16,16 +16,6 @@ export const AboutPage: React.FC = () => {
         <PageHeader
           title="About SolviX"
           subtitle="A dedicated support ticket management platform engineered for speed, transparency, and operational clarity."
-          extra={
-            <div className="flex gap-3">
-              <Link to={ROUTES.LOGIN}>
-                <Button type="default">Sign In</Button>
-              </Link>
-              <Link to={ROUTES.REGISTER}>
-                <Button type="primary">Register Agent</Button>
-              </Link>
-            </div>
-          }
         />
 
         <Card elevated className="p-4 sm:p-6 mb-10 border border-gray-100">

@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       collapsed={collapsed}
       onCollapse={onCollapse}
       trigger={null}
-      width={200}
+      width={300}
       collapsedWidth={80}
       theme="light"
       style={{ backgroundColor: "#ffffff" }}
@@ -92,10 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex flex-col h-full overflow-hidden">
         <div className="h-16 px-5 flex items-center border-b border-gray-100 shrink-0 overflow-hidden">
           {brand ?? (
-            <Logo
-              size={collapsed ? "small" : "middle"}
-              showText={!collapsed}
-            />
+            <Logo size={collapsed ? "small" : "middle"} showText={!collapsed} />
           )}
         </div>
 
